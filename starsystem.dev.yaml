@@ -1,0 +1,4 @@
+# Dev overlay — merged with starsystem.yaml by `ss processes --env=dev`.
+# Keep empty unless you need env-specific overrides (ports, env vars, etc.).
+
+services: {}

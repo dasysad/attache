@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "attache": {
+      "command": "pnpm",
+      "args": ["--dir", "/path/to/attache", "mcp:start"],
+      "env": {}
+    }
+  }
+}

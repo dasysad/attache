@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.lens/
+themes/
+*.db
+.DS_Store
+.env
+.env.*

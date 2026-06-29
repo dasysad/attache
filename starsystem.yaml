@@ -1,0 +1,69 @@
+version: "2"
+name: attache
+description: >
+  Household finance attache — local dev stack (Hono web + Lens gallery).
+
+# Managed by Starsystem (`ss processes`). Requires sibling celestial-intelligence
+# checkout with `ss` on PATH, or `pnpm exec ss` from that repo.
+#
+#   ss processes up --env=dev     # start web (:8780) + lens (:7777)
+#   ss processes ls --env=dev     # health / port status
+#   ss processes down --env=dev   # stop all
+#
+# One-shot without ss: pnpm dev:all
+
+services:
+  attache-web:
+    type: process
+    name: Attache web
+    description: Hono + htmx household app
+    target:
+      type: local-process
+    command: pnpm run dev:web
+    port: 8780
+    url: http://127.0.0.1:8780
+    _local:
+      auto_start: true
+      restart:
+        max_attempts: 5
+        backoff_ms: 2000
+
+  attache-lens:
+    type: process
+    name: Attache Lens gallery
+    description: Design system stories on port 7777
+    target:
+      type: local-process
+    command: pnpm lens
+    port: 7777
+    url: http://localhost:7777
+    _local:
+      auto_start: true
+      depends_on:
+        - attache-web
+      restart:
+        max_attempts: 5
+        backoff_ms: 2000
+
+  attache-extract:
+    type: process
+    name: Attache extract sidecar
+    description: Litestar bill extraction on port 8790
+    target:
+      type: local-process
+    command: bash -lc 'cd packages/extract && (test -d .venv || python3 -m venv .venv) && . .venv/bin/activate && pip -q install -e . && attache-extract'
+    port: 8790
+    url: http://127.0.0.1:8790/health
+    _local:
+      auto_start: false
+      restart:
+        max_attempts: 3
+        backoff_ms: 3000
+
+connections:
+  - from: attache-web
+    to: attache-lens
+    label: design tokens
+  - from: attache-web
+    to: attache-extract
+    label: bill extraction

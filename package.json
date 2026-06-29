@@ -1,0 +1,28 @@
+{
+  "name": "attache",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm run dev:web",
+    "dev:web": "pnpm --filter @attache/core build && pnpm --filter @attache/ui build:full && pnpm --filter @attache/server dev",
+    "dev:all": "pnpm run --parallel dev:web lens",
+    "lens": "pnpm --filter @attache/lens-gallery dev",
+    "ss:up": "ss processes up --env=dev",
+    "ss:down": "ss processes down --env=dev",
+    "ss:status": "ss processes ls --env=dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "attache": "pnpm --filter @attache/cli build && node packages/cli/dist/main.js",
+    "mcp:build": "pnpm --filter @attache/mcp build",
+    "mcp:start": "pnpm mcp:build && node packages/mcp/dist/main.js",
+    "extract:dev": "cd packages/extract && python3 -m venv .venv && . .venv/bin/activate && pip install -e . && attache-extract",
+    "extract:test": "cd packages/extract && python3 -m venv .venv && . .venv/bin/activate && pip install -e '.[dev]' && pytest",
+    "start": "pnpm --filter @attache/server start"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  }
+}
