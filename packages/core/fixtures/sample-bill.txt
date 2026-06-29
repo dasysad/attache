@@ -1,0 +1,6 @@
+# Sample bill for VS-4 dogfood — upload via web or CLI
+Payee: City Water Department
+Amount: $64.20
+Due: 2026-07-18
+Cadence: monthly
+Autopay: false

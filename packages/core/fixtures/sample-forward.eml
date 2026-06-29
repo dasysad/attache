@@ -1,0 +1,13 @@
+From: billing@water.local
+To: bills+PLACEHOLDER@ingest.attache.app
+Subject: Your water bill is ready
+Message-ID: <fixture-water-001@water.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Your water bill is ready.
+
+Payee: Regional Water Authority
+Amount: $52.10
+Due: 2026-08-05
+Cadence: monthly
