@@ -1,0 +1,125 @@
+/**
+ * Attache design tokens — household finance UI.
+ * Loaded by lens.theme.css and the Hono app (future: shared import).
+ */
+:root {
+  /* Color — surfaces */
+  --att-color-bg: #0f1419;
+  --att-color-surface: #1a222c;
+  --att-color-surface-raised: #232d3a;
+  --att-color-surface-overlay: #2d3844;
+
+  /* Color — brand */
+  --att-color-primary: #3d9a8b;
+  --att-color-primary-hover: #4db09f;
+  --att-color-primary-muted: #2a6b61;
+  --att-color-on-primary: #ffffff;
+
+  /* Color — text */
+  --att-color-text: #e8eef4;
+  --att-color-text-muted: #8b9aab;
+  --att-color-text-subtle: #5c6b7a;
+  --att-color-outline: #3d4f5f;
+
+  /* Color — feedback */
+  --att-color-success: #3d9a6b;
+  --att-color-warning: #c9a227;
+  --att-color-error: #e85d5d;
+  --att-color-info: #4a8fd4;
+  --att-color-action: #7c6cf0;
+
+  /* Typography */
+  --att-font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --att-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+
+  --att-type-display-size: 2rem;
+  --att-type-display-weight: 700;
+  --att-type-display-leading: 1.2;
+
+  --att-type-headline-size: 1.375rem;
+  --att-type-headline-weight: 600;
+  --att-type-headline-leading: 1.3;
+
+  --att-type-body-size: 1rem;
+  --att-type-body-weight: 400;
+  --att-type-body-leading: 1.5;
+
+  --att-type-label-size: 0.75rem;
+  --att-type-label-weight: 600;
+  --att-type-label-leading: 1.3;
+  --att-type-label-tracking: 0.04em;
+
+  --att-type-mono-size: 0.8125rem;
+  --att-type-mono-leading: 1.4;
+
+  /* Spacing — 4px base */
+  --att-space-1: 0.25rem;
+  --att-space-2: 0.5rem;
+  --att-space-3: 0.75rem;
+  --att-space-4: 1rem;
+  --att-space-5: 1.25rem;
+  --att-space-6: 1.5rem;
+  --att-space-8: 2rem;
+  --att-space-10: 2.5rem;
+  --att-space-12: 3rem;
+  --att-space-16: 4rem;
+
+  /* Layout */
+  --att-radius-sm: 4px;
+  --att-radius-md: 8px;
+  --att-radius-lg: 12px;
+  --att-border-thin: 1px;
+  --att-layout-max: 960px;
+  --att-layout-gutter: var(--att-space-6);
+
+  /* Elevation — subtle; finance UI favors clarity over glow */
+  --att-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --att-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --att-shadow-focus: 0 0 0 3px rgba(61, 154, 139, 0.35);
+
+  /* Motion */
+  --att-motion-fast: 120ms ease;
+  --att-motion-normal: 200ms ease;
+}
+
+/* Lens / story aliases — map to att-* for helper compatibility */
+:root {
+  --text: var(--att-color-text);
+  --text-muted: var(--att-color-text-muted);
+  --accent: var(--att-color-primary);
+  --border: var(--att-color-outline);
+  --space-1: var(--att-space-1);
+  --space-2: var(--att-space-2);
+  --space-3: var(--att-space-3);
+  --space-4: var(--att-space-4);
+  --space-5: var(--att-space-5);
+  --space-6: var(--att-space-6);
+  --space-8: var(--att-space-8);
+  --space-10: var(--att-space-10);
+  --space-12: var(--att-space-12);
+  --space-16: var(--att-space-16);
+  --font-mono: var(--att-font-mono);
+  --font-display: var(--att-font-sans);
+  --font-body: var(--att-font-sans);
+  --color-on-surface: var(--att-color-text);
+  --color-on-surface-variant: var(--att-color-text-muted);
+  --color-outline: var(--att-color-text-subtle);
+  --color-outline-variant: var(--att-color-outline);
+  --color-primary: var(--att-color-primary);
+  --color-primary-container: var(--att-color-primary-muted);
+  --color-surface-container: var(--att-color-surface);
+  --color-surface-container-low: var(--att-color-bg);
+  --color-surface-container-high: var(--att-color-surface-raised);
+  --color-error: var(--att-color-error);
+  --color-error-container: #5c2a2a;
+  --color-on-error: #fff;
+  --border-thin: var(--att-border-thin);
+  --motion-smooth: var(--att-motion-normal);
+}
+
+body {
+  background: var(--att-color-bg);
+  color: var(--att-color-text);
+  font-family: var(--att-font-sans);
+  margin: 0;
+}

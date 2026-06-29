@@ -1,0 +1,43 @@
+{
+  "name": "@attache/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme/tokens.css": "./src/theme/tokens.css",
+    "./att-button": "./src/att-button.ts",
+    "./att-input": "./src/att-input.ts",
+    "./att-card": "./src/att-card.ts",
+    "./att-chip": "./src/att-chip.ts",
+    "./att-badge": "./src/att-badge.ts",
+    "./att-checkbox": "./src/att-checkbox.ts",
+    "./att-toggle": "./src/att-toggle.ts",
+    "./att-select": "./src/att-select.ts",
+    "./att-cost-receipt": "./src/att-cost-receipt.ts",
+    "./att-money": "./src/att-money.ts",
+    "./att-transaction-row": "./src/att-transaction-row.ts",
+    "./att-obligation-row": "./src/att-obligation-row.ts",
+    "./att-account-row": "./src/att-account-row.ts",
+    "./att-stat": "./src/att-stat.ts",
+    "./att-list": "./src/att-list.ts",
+    "./att-runway-chart": "./src/att-runway-chart.ts",
+    "./att-obligation-timeline": "./src/att-obligation-timeline.ts",
+    "./att-wizard-steps": "./src/att-wizard-steps.ts",
+    "./format-money": "./src/format-money.ts"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=esm --outfile=../server/public/static/attache-ui.js",
+    "build:full": "esbuild src/index.ts --bundle --format=esm --outfile=../server/public/static/attache-ui.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

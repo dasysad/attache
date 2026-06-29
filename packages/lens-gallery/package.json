@@ -1,0 +1,20 @@
+{
+  "name": "@attache/lens-gallery",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Attache design system gallery — Lens stories for att-* primitives.",
+  "scripts": {
+    "dev": "lens dev",
+    "build": "lens build"
+  },
+  "dependencies": {
+    "@attache/ui": "workspace:*",
+    "@celestial/lens": "link:../../../celestial-intelligence/packages/lens",
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "@celestial/lens-cli": "link:../../../celestial-intelligence/packages/lens-cli",
+    "typescript": "^5.8.2"
+  }
+}
