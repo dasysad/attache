@@ -1,0 +1,23 @@
+{
+  "name": "@attache/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@attache/core": "workspace:*",
+    "@hono/node-server": "^1.14.0",
+    "hono": "^4.7.4",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/web-push": "^3.6.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
