@@ -18,6 +18,7 @@ and add an entry to the index below.
 | [006](./006-pricing-and-premium-tiers.md) | Pricing, Plaid pass-through, and premium tiers | proposed |
 | [007](./007-email-ingest-strategy.md) | Email ingest: IMAP first, hosted ingress deferred | accepted |
 | [008](./008-gmail-oauth-local-vault.md) | Gmail OAuth ingest: local vault, CLI-first; WorkOS ≠ Gmail | accepted |
+| [009](./009-standalone-first-mesh-deferred.md) | Standalone app first; mesh deferred to backlog | accepted |
 
 ## Related
 

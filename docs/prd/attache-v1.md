@@ -11,8 +11,8 @@ forecasting, obligations, calendar with provenance, read-only investments,
 document/email ingestion, and (v1.1) rules-based money movement via licensed
 rails. Not a universal assistant.
 
-**Positioning:** Local-first, optional ZK cloud, household mesh sync, transparent
-aggregation pricing, premium agents and workflows.
+**Positioning:** Local-first standalone app first; household mesh sync in backlog
+(ADR-009). Transparent aggregation pricing, premium agents and workflows.
 
 ## Goals
 
@@ -21,8 +21,8 @@ aggregation pricing, premium agents and workflows.
 | 5-minute onboarding to useful forecast | Manual path, no Plaid required |
 | Know if bills are covered 30 days out | Runway visible on dashboard |
 | Ingest a PDF bill → obligation | < 2 min with HITL confirm |
-| Household two-device sync | LAN mesh without cloud |
 | Agent answers "can we afford X?" | MCP tool with forecast context |
+| Household two-device sync | **Backlog** — post standalone prototype (ADR-009) |
 
 ## Non-goals (v1)
 
@@ -35,6 +35,7 @@ aggregation pricing, premium agents and workflows.
 - Business / real estate modules (v2)
 - iOS app
 - Building our own Plaid/bank aggregator
+- **Household mesh / multi-device sync** (v1) — see [backlog](./backlog.md), ADR-009
 
 ## Personas
 
@@ -52,7 +53,7 @@ See ADRs 001–006. Stack:
 - **TigerBeetle** — ledger (primary site per tenant)
 - **Starflow** — ingestion, notify, merge workflows
 - **Spacecraft** — agent MCP
-- **@celestial/mesh-core** — household sync (LAN first)
+- **@celestial/mesh-core** — household sync (**backlog**, ADR-009)
 - **Python/Litestar** — ledger sidecar, forecasting (attache-python back-burner except ledger/math)
 - **Plaid** — v1 bank ingest; **SnapTrade** — premium read-only
 - **R2 + Supabase** — optional ZK cloud backup and auth
@@ -68,8 +69,10 @@ See ADRs 001–006. Stack:
 | VS-4 | Document + email ingest | PDF bill → obligation pipeline |
 | VS-5 | Agent MCP | `get_runway`, `list_obligations`, `propose_transfer` (dry-run) |
 | VS-6 | Notifications | Web push + in-app |
-| VS-7 | Household mesh | Invite, LAN sync, ledger primary election |
-| VS-8 | Merge wizard | Two tenants → household union or link-only | **Post-dogfood** |
+| ~~VS-7~~ | ~~Household mesh~~ | **Backlog** [BL-1](./backlog.md) |
+| ~~VS-8~~ | ~~Merge wizard~~ | **Backlog** [BL-2](./backlog.md) |
+| VS-7 | Standalone packaging | Distributable single-device app (ADR-009) |
+| VS-8 | SQLCipher + passphrase | VS-0.1 security gate |
 | VS-9 | Premium + SnapTrade | Subscription gate, Connection Portal embed |
 | VS-10 | Android reader | FCM push, read-only list (see spec) |
 | VS-11 | Credential hygiene (deferred) | Event-driven breach/reuse alerts; HITL-assisted change for finance-linked accounts — see [plan](../plans/credential-hygiene-future.md) |
