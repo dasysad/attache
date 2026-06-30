@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Attache",
+  "version": "0.1.0",
+  "identifier": "com.attache.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:8780",
+    "beforeDevCommand": "node scripts/dev-server.mjs",
+    "beforeBuildCommand": "ATTACHE_BUNDLE_NODE=1 node scripts/prepare-bundle.mjs"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Attache",
+        "url": "index.html",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "transparent": false,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Finance",
+    "shortDescription": "Local-first household finance.",
+    "longDescription": "Attache desktop — Tauri shell over loopback @attache/server. See ADR-010.",
+    "resources": {
+      "server-bundle/": "server-bundle/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "signingIdentity": null,
+      "entitlements": null,
+      "dmg": {
+        "windowSize": { "width": 540, "height": 380 },
+        "appPosition": { "x": 140, "y": 200 },
+        "applicationFolderPosition": { "x": 400, "y": 200 }
+      }
+    }
+  }
+}

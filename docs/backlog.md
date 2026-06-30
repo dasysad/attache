@@ -42,7 +42,7 @@ See [vs-7-standalone-packaging.md](./plans/vs-7-standalone-packaging.md). Not ba
 | Phase | Deliverable |
 |-------|-------------|
 | 1 | `dasysad/homebrew-tap` + CLI Formula |
-| 2 | `packages/attache-desktop` (Tauri) + DMG + Cask |
+| 2 | `packages/attache-desktop` (Tauri) + DMG + Cask | 🚧 scaffold |
 | 3 | Signing, R2 CDN, auto-update |
 
 ## Explicit non-goals (unchanged)

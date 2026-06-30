@@ -17,7 +17,9 @@
     "mcp:start": "pnpm mcp:build && node packages/mcp/dist/main.js",
     "extract:dev": "cd packages/extract && python3 -m venv .venv && . .venv/bin/activate && pip install -e . && attache-extract",
     "extract:test": "cd packages/extract && python3 -m venv .venv && . .venv/bin/activate && pip install -e '.[dev]' && pytest",
-    "start": "pnpm --filter @attache/server start"
+    "start": "pnpm --filter @attache/server start",
+    "desktop:dev": "pnpm --filter @attache/desktop dev",
+    "desktop:build": "pnpm --filter @attache/desktop build"
   },
   "engines": {
     "node": ">=22"

@@ -1,0 +1,19 @@
+{
+  "name": "@attache/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Attache desktop app — Tauri 2 shell over loopback @attache/server (ADR-010)",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:arm64": "tauri build --target aarch64-apple-darwin",
+    "build:x64": "tauri build --target x86_64-apple-darwin",
+    "prepare-bundle": "node scripts/prepare-bundle.mjs",
+    "dev-server": "node scripts/dev-server.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

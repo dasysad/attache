@@ -83,11 +83,13 @@ import {
   transfersPage,
 } from "./views.js";
 import { syncNotificationsSync } from "./notify-sync.js";
+import { resolvePublicRoot } from "./paths.js";
 import { getVapidPublicKey, isPushConfigured } from "./push.js";
 
 const app = new Hono();
 
-app.use("/static/*", serveStatic({ root: "./public" }));
+const publicRoot = resolvePublicRoot();
+app.use("/static/*", serveStatic({ root: publicRoot }));
 
 function withDb<T>(fn: (db: ReturnType<typeof openDatabase>) => T): T {
   const db = openDatabase();

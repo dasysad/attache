@@ -72,6 +72,8 @@ jobs:
 
       - name: Build DMG via Tauri
         if: steps.check.outputs.ready == 'true'
+        env:
+          ATTACHE_BUNDLE_NODE: "1"
         run: pnpm --filter @attache/desktop tauri build --target ${{ matrix.rust_target }}
 
       - name: Placeholder when desktop package missing

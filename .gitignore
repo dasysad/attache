@@ -1,5 +1,10 @@
 node_modules/
 dist/
+!packages/attache-desktop/dist/
+!packages/attache-desktop/dist/**
+packages/attache-desktop/src-tauri/server-bundle/
+packages/attache-desktop/src-tauri/target/
+packages/attache-desktop/src-tauri/gen/
 .lens/
 themes/
 *.db

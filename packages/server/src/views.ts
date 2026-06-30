@@ -47,7 +47,7 @@ export function layout(title: string, body: string): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)} — Attache</title>
-  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="/static/htmx.min.js"></script>
   <script type="module" src="/static/attache-ui.js"></script>
   <link rel="stylesheet" href="/static/attache.css" />
 </head>

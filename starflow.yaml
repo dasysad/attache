@@ -45,7 +45,8 @@ pipelines:
           command -v gh >/dev/null || { echo "❌ install gh"; exit 1; }
           gh auth status >/dev/null 2>&1 || { echo "❌ gh auth login"; exit 1; }
           if [ ! -f packages/attache-desktop/package.json ]; then
-            echo "⚠️  packages/attache-desktop not found — workflow will fail until Tauri shell lands"
+            echo "❌ packages/attache-desktop missing"
+            exit 1
           fi
           echo "✅ version=${version}"
 

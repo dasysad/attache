@@ -29,4 +29,5 @@ brew tap dasysad/tap && brew install --cask attache
 ```bash
 pnpm ss:up
 pnpm test
+pnpm desktop:dev   # Tauri shell @ :8780
 ```

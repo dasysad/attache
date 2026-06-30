@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Attache</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: grid; place-items: center; height: 100vh; margin: 0; background: #0f1419; color: #e8eef4; }
+  </style>
+</head>
+<body>
+  <p>Starting Attache…</p>
+  <script>
+    const url = "http://127.0.0.1:8780/";
+    const deadline = Date.now() + 120_000;
+    (function poll() {
+      fetch(url, { mode: "no-cors" }).then(() => location.replace(url)).catch(() => {
+        if (Date.now() < deadline) setTimeout(poll, 300);
+      });
+    })();
+  </script>
+</body>
+</html>
