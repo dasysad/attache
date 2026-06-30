@@ -1,0 +1,104 @@
+# Attache desktop DMG — GitHub macOS worker (ADR-010).
+#
+# Dispatched by Starflow `release-attache-desktop` via `gh workflow run`.
+# Requires packages/attache-desktop (Tauri 2) — enable steps when that lands.
+#
+# Inputs:
+#   version — tag e.g. desktop-v0.1.0
+
+name: Build Attache Desktop (worker)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag (e.g. desktop-v0.1.0)"
+        required: true
+
+concurrency:
+  group: build-attache-desktop-${{ inputs.version }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            runner: macos-latest
+            rust_target: aarch64-apple-darwin
+          - arch: x86_64
+            runner: macos-13
+            rust_target: x86_64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Mark checkout safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Check desktop package exists
+        id: check
+        run: |
+          if [ -f packages/attache-desktop/package.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::packages/attache-desktop not implemented yet — scaffold only"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        if: steps.check.outputs.ready == 'true'
+        run: npm install -g pnpm@10
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.check.outputs.ready == 'true'
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.ready == 'true'
+        run: pnpm install --ignore-scripts || pnpm install --ignore-scripts --no-frozen-lockfile
+
+      - name: Build DMG via Tauri
+        if: steps.check.outputs.ready == 'true'
+        run: pnpm --filter @attache/desktop tauri build --target ${{ matrix.rust_target }}
+
+      - name: Placeholder when desktop package missing
+        if: steps.check.outputs.ready != 'true'
+        run: |
+          echo "Desktop package not ready — create packages/attache-desktop first"
+          exit 1
+
+      - name: Ad-hoc sign .app
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          APP_DIR=$(find packages/attache-desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos -name "*.app" -maxdepth 1 -type d | head -1)
+          [ -n "$APP_DIR" ] && codesign --force --deep --sign - "$APP_DIR"
+
+      - name: Rename DMG
+        if: steps.check.outputs.ready == 'true'
+        id: dmg
+        run: |
+          BUNDLE_DIR=packages/attache-desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg
+          SRC=$(ls "$BUNDLE_DIR"/*.dmg | head -1)
+          DST="attache-desktop-${{ matrix.arch }}-${{ inputs.version }}.dmg"
+          mv "$SRC" "$DST"
+          echo "path=$DST" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          name: attache-desktop-dmg-${{ matrix.arch }}-${{ inputs.version }}
+          path: ${{ steps.dmg.outputs.path }}
+          retention-days: 7

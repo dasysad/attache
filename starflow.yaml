@@ -1,0 +1,111 @@
+name: attache
+
+# Starflow release pipelines (ADR-010). Orchestrates GitHub Actions macOS
+# workers — does not build DMGs locally on Linux entmoot.
+#
+# Usage:
+#   sf run release-attache-desktop --input version=desktop-v0.1.0
+#
+# Requires: gh CLI authenticated, packages/attache-desktop (Tauri) when enabled.
+
+repo: dasysad/attache
+branch: main
+
+pipelines:
+
+  smoke:
+    description: "Verify Starflow can run a trivial step in this repo"
+    triggers:
+      - type: manual
+    steps:
+      hello:
+        name: Echo + build check
+        run: |
+          echo "attache starflow smoke ok"
+          node -v
+          pnpm -v
+
+  release-attache-desktop:
+    description: "Tag → dispatch GH macOS Tauri build → publish DMG release (ADR-010)"
+    triggers:
+      - type: manual
+
+    steps:
+      validate:
+        name: Validate inputs
+        run: |
+          if [ -z "${version}" ]; then
+            echo "❌ version required — e.g. sf run release-attache-desktop --input version=desktop-v0.1.0"
+            exit 1
+          fi
+          echo "${version}" | grep -qE '^desktop-v[0-9]+\.[0-9]+\.[0-9]+$' || {
+            echo "❌ version must match desktop-vMAJOR.MINOR.PATCH"
+            exit 1
+          }
+          command -v gh >/dev/null || { echo "❌ install gh"; exit 1; }
+          gh auth status >/dev/null 2>&1 || { echo "❌ gh auth login"; exit 1; }
+          if [ ! -f packages/attache-desktop/package.json ]; then
+            echo "⚠️  packages/attache-desktop not found — workflow will fail until Tauri shell lands"
+          fi
+          echo "✅ version=${version}"
+
+      tag:
+        name: Create and push tag
+        needs: [validate]
+        run: |
+          if git rev-parse "${version}" >/dev/null 2>&1; then
+            echo "Tag ${version} exists — reusing"
+          else
+            git tag "${version}"
+          fi
+          git push origin "${version}"
+
+      dispatch:
+        name: Dispatch build-attache-desktop.yml
+        needs: [tag]
+        run: |
+          gh workflow run build-attache-desktop.yml \
+            --ref "${version}" \
+            --field "version=${version}"
+          sleep 4
+          RUN_ID=$(gh run list \
+            --workflow=build-attache-desktop.yml \
+            --branch="${version}" \
+            --limit=1 \
+            --json databaseId -q '.[0].databaseId')
+          [ -n "$RUN_ID" ] || { echo "❌ no workflow run found"; exit 1; }
+          echo "$RUN_ID" > /tmp/sf-attache-desktop-run-id
+          echo "✅ run_id=$RUN_ID"
+
+      wait:
+        name: Wait for macOS build
+        needs: [dispatch]
+        run: |
+          RUN_ID=$(cat /tmp/sf-attache-desktop-run-id)
+          for i in $(seq 1 60); do
+            CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q .conclusion)
+            echo "[$i/60] conclusion=$CONCLUSION"
+            case "$CONCLUSION" in
+              success) exit 0 ;;
+              failure|cancelled|timed_out|action_required|startup_failure)
+                echo "❌ build failed: $CONCLUSION"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "❌ timed out"; exit 1
+
+      publish:
+        name: Create GitHub release with DMGs
+        needs: [wait]
+        run: |
+          RUN_ID=$(cat /tmp/sf-attache-desktop-run-id)
+          STAGING="dist/desktop-release-staging/${version}"
+          mkdir -p "$STAGING"
+          gh run download "$RUN_ID" --dir "$STAGING"
+          find "$STAGING" -name "*.dmg" -exec mv {} "$STAGING/" \;
+          find "$STAGING" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \; 2>/dev/null || true
+          ls -lh "$STAGING"/*.dmg
+          gh release create "${version}" "$STAGING"/*.dmg \
+            --title "Attache Desktop ${version}" \
+            --generate-notes \
+            --prerelease

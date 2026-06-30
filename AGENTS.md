@@ -2,35 +2,31 @@
 
 ## Strategy: standalone prototype first (ADR-009)
 
-**Mesh is backlog** — do not implement VS-7 mesh, merge wizard, or
-`@celestial/mesh-core` integration until [docs/backlog.md](docs/backlog.md) BL-1
-is explicitly pulled.
+Mesh is **backlog** — see [docs/backlog.md](docs/backlog.md).
 
-Ship a **distributable single-device app**: local SQLite + vault, web + CLI + MCP.
-`site_id` / `peer_identity` schema stays for future mesh; no transport code.
+## Current sprint: VS-7 packaging (ADR-010)
 
-Starsystem (`pnpm ss:up`) = **dev supervisor only**. Future SS mesh lib may bundle
-process-manager and vault — integrate via adapter later, not a blocker now.
+Release via **Starflow** → **GitHub Actions** (macOS DMG) → **Homebrew tap**.
 
-## Current sprint
+| Doc | Purpose |
+|-----|---------|
+| [vs-7-standalone-packaging.md](docs/plans/vs-7-standalone-packaging.md) | Phases + checklist |
+| [ADR-010](docs/adr/010-release-pipeline-starflow.md) | Decision |
+| [homebrew-tap-template.md](docs/specs/homebrew-tap-template.md) | Tap repo starter |
 
-Completed through VS-6, VS-2.1, VS-5.1, VS-4.4. Next candidates:
+```bash
+# When Tauri shell exists:
+sf run release-attache-desktop --input version=desktop-v0.1.0
 
-1. **VS-8** — SQLCipher + passphrase (VS-0.1)
-2. **LedgerPort P0** — fake adapter (ADR-001)
-3. **VS-7** — standalone packaging / distributable app
+# End user (after tap exists):
+brew tap dasysad/tap && brew install --cask attache
+```
 
-Read [docs/adr/009-standalone-first-mesh-deferred.md](docs/adr/009-standalone-first-mesh-deferred.md).
+**Not shipped to users:** Starsystem (`ss`), mesh, Celestial monorepo.
 
-## Dev servers
+## Dev
 
 ```bash
 pnpm ss:up
-pnpm ss:down
-```
-
-## Tests
-
-```bash
-pnpm --filter @attache/core test
+pnpm test
 ```

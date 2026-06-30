@@ -1,0 +1,83 @@
+# Bump dasysad/homebrew-tap when a desktop-v* release is published (ADR-010).
+#
+# Celestial precedent: reads sha256 from release asset or sidecar, opens PR
+# against the tap repo updating Casks/attache.rb.
+#
+# Required secret:
+#   HOMEBREW_TAP_TOKEN — contents + PR write on dasysad/homebrew-tap
+
+name: Bump Homebrew tap
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  bump:
+    if: startsWith(github.event.release.tag_name, 'desktop-v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: meta
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#desktop-v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download aarch64 DMG and compute sha256
+        id: sha
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/attache-desktop-aarch64-${TAG}.dmg"
+          curl -fsSL -o attache.dmg "$URL"
+          SHA256=$(shasum -a 256 attache.dmg | awk '{print $1}')
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: dasysad/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update Cask
+        working-directory: tap
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+          URL: ${{ steps.sha.outputs.url }}
+        run: |
+          set -euo pipefail
+          CASK=Casks/attache.rb
+          if [ ! -f "$CASK" ]; then
+            echo "Create $CASK in homebrew-tap first" >&2
+            exit 1
+          fi
+          sed -i -E "s|^(  version )\"[^\"]+\"|\\1\"${VERSION}\"|" "$CASK"
+          sed -i -E "s|^(  sha256 )\"[^\"]+\"|\\1\"${SHA256}\"|"  "$CASK"
+
+      - name: Open PR
+        working-directory: tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          BRANCH="bump/attache-${VERSION}"
+          git config user.name "attache-bump-bot"
+          git config user.email "bump-bot@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add Casks/attache.rb
+          git commit -m "attache ${VERSION}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "attache ${VERSION}" \
+            --body "Automated bump for ${TAG}." \
+            --base main \
+            --head "$BRANCH"

@@ -35,6 +35,16 @@ block standalone on SS internal packaging.
 | BL-12 | Licensed ACH / autonomous rules | v1.1 PRD |
 | BL-13 | Starflow transfer DAGs | After LedgerPort |
 
+## Active — standalone packaging (VS-7)
+
+See [vs-7-standalone-packaging.md](./plans/vs-7-standalone-packaging.md). Not backlog — in progress.
+
+| Phase | Deliverable |
+|-------|-------------|
+| 1 | `dasysad/homebrew-tap` + CLI Formula |
+| 2 | `packages/attache-desktop` (Tauri) + DMG + Cask |
+| 3 | Signing, R2 CDN, auto-update |
+
 ## Explicit non-goals (unchanged)
 
 - Universal assistant / 24 channels
