@@ -14,16 +14,16 @@ Release via **Starflow** → **GitHub Actions** (macOS DMG) → **Homebrew tap**
 | [ADR-010](docs/adr/010-release-pipeline-starflow.md) | Decision |
 | [homebrew-tap-template.md](docs/specs/homebrew-tap-template.md) | Tap repo starter |
 
-Tap: [dasysad/homebrew-tap](https://github.com/dasysad/homebrew-tap) — set `HOMEBREW_TAP_TOKEN` on this repo for auto-bump PRs.
+Tap: [celestial-intelligence-agency/homebrew-tap](https://github.com/celestial-intelligence-agency/homebrew-tap) — set `HOMEBREW_TAP_TOKEN` on this repo for auto-bump PRs.
 
 ```bash
 # Release desktop DMG:
 sf run release-attache-desktop --input version=desktop-v0.1.0
 
 # End user:
-brew tap dasysad/tap
-brew install attache-cli          # CLI (v0.1.0)
-brew install --cask attache       # desktop (after first desktop-v* DMG release)
+brew tap celestial-intelligence-agency/tap
+brew install attache-cli          # CLI
+brew install --cask attache         # desktop (Apple Silicon)
 ```
 
 **Not shipped to users:** Starsystem (`ss`), mesh, Celestial monorepo.
