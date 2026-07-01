@@ -1,10 +1,10 @@
-# Bump dasysad/homebrew-tap when a desktop-v* release is published (ADR-010).
+# Bump celestial-intelligence-agency/homebrew-tap when a desktop-v* release is published (ADR-010).
 #
 # Celestial precedent: reads sha256 from release asset or sidecar, opens PR
 # against the tap repo updating Casks/attache.rb.
 #
 # Required secret:
-#   HOMEBREW_TAP_TOKEN — contents + PR write on dasysad/homebrew-tap
+#   HOMEBREW_TAP_TOKEN — contents + PR write on celestial-intelligence-agency/homebrew-tap
 
 name: Bump Homebrew tap
 
@@ -41,7 +41,7 @@ jobs:
       - name: Checkout homebrew-tap
         uses: actions/checkout@v4
         with:
-          repository: dasysad/homebrew-tap
+          repository: celestial-intelligence-agency/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
