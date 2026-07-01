@@ -68,7 +68,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.check.outputs.ready == 'true'
-        run: pnpm install --ignore-scripts || pnpm install --ignore-scripts --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build DMG via Tauri
         if: steps.check.outputs.ready == 'true'
