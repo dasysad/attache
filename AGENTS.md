@@ -22,7 +22,7 @@ sf run release-attache-desktop --input version=desktop-v0.1.0
 
 # End user:
 brew tap dasysad/tap
-brew install attache              # CLI (v0.1.0)
+brew install attache-cli          # CLI (v0.1.0)
 brew install --cask attache       # desktop (after first desktop-v* DMG release)
 ```
 
