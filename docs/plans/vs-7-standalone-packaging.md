@@ -17,6 +17,7 @@ Tauri spawns bundled `node dist/index.js` in release; dev uses `scripts/dev-serv
 
 | Item | Status |
 |------|--------|
-| `dasysad/homebrew-tap` + Cask | ⏸️ |
-| First `desktop-v0.1.0` release | ⏸️ |
+| `dasysad/homebrew-tap` + Cask | ✅ [github.com/dasysad/homebrew-tap](https://github.com/dasysad/homebrew-tap) |
+| `Formula/attache.rb` (CLI v0.1.0) | ✅ |
+| First `desktop-v0.1.0` release | ⏸️ (Cask sha256 placeholder until DMG ships) |
 | Custom app icon / signing | ⏸️ |

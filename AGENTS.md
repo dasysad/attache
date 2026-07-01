@@ -14,12 +14,16 @@ Release via **Starflow** → **GitHub Actions** (macOS DMG) → **Homebrew tap**
 | [ADR-010](docs/adr/010-release-pipeline-starflow.md) | Decision |
 | [homebrew-tap-template.md](docs/specs/homebrew-tap-template.md) | Tap repo starter |
 
+Tap: [dasysad/homebrew-tap](https://github.com/dasysad/homebrew-tap) — set `HOMEBREW_TAP_TOKEN` on this repo for auto-bump PRs.
+
 ```bash
-# When Tauri shell exists:
+# Release desktop DMG:
 sf run release-attache-desktop --input version=desktop-v0.1.0
 
-# End user (after tap exists):
-brew tap dasysad/tap && brew install --cask attache
+# End user:
+brew tap dasysad/tap
+brew install attache              # CLI (v0.1.0)
+brew install --cask attache       # desktop (after first desktop-v* DMG release)
 ```
 
 **Not shipped to users:** Starsystem (`ss`), mesh, Celestial monorepo.

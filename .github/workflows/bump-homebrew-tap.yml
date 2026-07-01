@@ -61,7 +61,13 @@ jobs:
           sed -i -E "s|^(  version )\"[^\"]+\"|\\1\"${VERSION}\"|" "$CASK"
           sed -i -E "s|^(  sha256 )\"[^\"]+\"|\\1\"${SHA256}\"|"  "$CASK"
 
+          if git diff --quiet "$CASK"; then
+            echo "Cask already at ${VERSION} — no PR needed"
+            echo "noop=true" >> "$GITHUB_ENV"
+          fi
+
       - name: Open PR
+        if: env.noop != 'true'
         working-directory: tap
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
