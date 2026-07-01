@@ -1,2 +1,8 @@
 packages:
   - "packages/*"
+
+# pnpm v10+ requires explicit approval for native postinstall scripts.
+# Needed for Homebrew Formula install and CI sandboxes.
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
