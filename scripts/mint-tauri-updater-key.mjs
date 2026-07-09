@@ -50,11 +50,21 @@ function sh(cmd, opts = {}) {
   }).trim();
 }
 
+function ssBin() {
+  if (process.env.SS_BIN) return process.env.SS_BIN;
+  try {
+    return sh("command -v ss");
+  } catch {
+    return "ss";
+  }
+}
+
 function ssVault(args) {
-  const r = spawnSync("ss", ["vault", ...args], {
+  const r = spawnSync(ssBin(), ["vault", ...args], {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
+    env: process.env,
   });
   if (r.status !== 0) {
     throw new Error(r.stderr || r.stdout || "ss vault failed");
@@ -63,7 +73,12 @@ function ssVault(args) {
 }
 
 function haveSs() {
-  return spawnSync("ss", ["--version"], { stdio: "ignore" }).status === 0;
+  try {
+    sh("command -v ss");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function vaultGet(key) {

@@ -32,8 +32,11 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": false,
-    "targets": ["dmg", "app"],
+    "createUpdaterArtifacts": true,
+    "targets": [
+      "dmg",
+      "app"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -52,15 +55,24 @@
       "signingIdentity": "-",
       "entitlements": "entitlements.plist",
       "dmg": {
-        "windowSize": { "width": 540, "height": 380 },
-        "appPosition": { "x": 140, "y": 200 },
-        "applicationFolderPosition": { "x": 400, "y": 200 }
+        "windowSize": {
+          "width": 540,
+          "height": 380
+        },
+        "appPosition": {
+          "x": 140,
+          "y": 200
+        },
+        "applicationFolderPosition": {
+          "x": 400,
+          "y": 200
+        }
       }
     }
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDExOEM2MjZDREJGRTA0Q0UKUldUT0JQN2JiR0tNRVhqdXlOSHNMQmNEYlRhV3pSUm93a2FyT3VZUHJTM0N6R05jTUl0T09rTEgK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzODQwQUUxOTE1RjVCRUUKUldUdVcxK1I0UXFFVTRBUDJDQWtVQkF0NjFRVHlZdWxJRWU5dDlHVHVzTFZnRWZac1dQeFU5L0YK",
       "endpoints": [
         "https://github.com/dasysad/attache/releases/latest/download/latest.json"
       ],
