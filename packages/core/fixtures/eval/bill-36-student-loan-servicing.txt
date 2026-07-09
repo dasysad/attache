@@ -1,0 +1,6 @@
+# Eval fixture 36 — Student Loan Servicing
+Vendor: Student Loan Servicing
+Amount: 93.74
+Due: 12/8/2026
+Cadence: once
+Autopay: false

@@ -1,0 +1,6 @@
+# Eval fixture 48 — UnitedHealthcare
+Payee: UnitedHealthcare
+Amount: 338.13
+Due: 2026-12-20
+Cadence: once
+Autopay: false

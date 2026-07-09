@@ -1,6 +1,6 @@
 # VS-7 — Standalone packaging & distribution
 
-**Status:** in progress (desktop scaffold landed)  
+**Status:** Phase 2 shipped; slice 4 signing/updater complete  
 **ADR:** [010](../adr/010-release-pipeline-starflow.md)  
 **Package:** [packages/attache-desktop](../../packages/attache-desktop/README.md)
 
@@ -19,5 +19,8 @@ Tauri spawns bundled `node dist/index.js` in release; dev uses `scripts/dev-serv
 |------|--------|
 | `dasysad/homebrew-tap` | ✅ [github.com/dasysad/homebrew-tap](https://github.com/dasysad/homebrew-tap) |
 | `Formula/attache-cli.rb` | ✅ `brew install attache-cli` |
-| `Casks/attache.rb` | ✅ placeholder sha until first DMG |
-| Custom app icon / signing | ⏸️ |
+| `Casks/attache.rb` | ✅ dual-arch via bump workflow |
+| Developer ID + notarization | ✅ ADR-012 — CI secrets |
+| Tauri auto-update | ✅ `latest.json` on release |
+| Custom app icon polish | ⏸️ backlog |
+| R2 CDN mirror | ⏸️ backlog (BL-adjacent) |

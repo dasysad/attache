@@ -1,0 +1,6 @@
+# Eval fixture 12 — Adobe Creative Cloud
+Payee: Adobe Creative Cloud
+Amount: 477.59
+Due: 2026-12-12
+Cadence: once
+Autopay: false

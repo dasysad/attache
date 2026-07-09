@@ -1,0 +1,6 @@
+# Eval fixture 19 — HBO Max
+Payee: HBO Max
+Amount: 247.47
+Due: 2026-07-19
+Cadence: monthly
+Autopay: yes

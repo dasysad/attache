@@ -43,7 +43,7 @@ describe("VS-4.4 Gmail loopback OAuth", () => {
     vaultDir = mkdtempSync(join(tmpdir(), "attache-gmail-loop-vault-"));
     const db = openDatabase(dataDir);
     createTenant(db, { householdName: "T", holderDisplayName: "A" });
-    const vault = new LocalVaultPort(vaultDir);
+    const vault = new LocalVaultPort(vaultDir, null);
     setVaultForTests(vault);
     return { db, vault };
   }

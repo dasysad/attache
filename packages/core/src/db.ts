@@ -2,9 +2,12 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import { resolveKeyForDir, type ResolveKeyOptions } from "./crypto/key-provider.js";
 
-/** Default local data directory for VS-0 (SQLCipher in a later slice). */
+/** Default local data directory for VS-0. Override with ATTACHE_DATA_DIR for tests/agents. */
 export function defaultDataDir(): string {
+  const override = process.env.ATTACHE_DATA_DIR?.trim();
+  if (override) return override;
   return join(homedir(), ".attache", "data");
 }
 
@@ -37,9 +40,41 @@ function ensureColumn(
   }
 }
 
-export function openDatabase(dataDir = defaultDataDir()): Database.Database {
+/**
+ * Apply the SQLCipher key to a freshly-opened database (VS-8, ADR-011).
+ *
+ * The DEK is a 32-byte random key (not a passphrase), so we pass it as a raw
+ * hex key (`x'..'`) to tell SQLCipher to use it directly rather than running its
+ * own KDF over it. This MUST run before any other statement touches the DB, or
+ * SQLite reports SQLITE_NOTADB.
+ */
+function applyCipherKey(db: Database.Database, dek: Buffer): void {
+  db.pragma("cipher='sqlcipher'");
+  db.pragma(`key="x'${dek.toString("hex")}'"`);
+}
+
+/**
+ * Open (and migrate) the local database.
+ *
+ * VS-8: if an encryption keyfile exists in `dataDir`, the database is opened
+ * with SQLCipher using a key resolved by the `KeyProvider` (env passphrase/DEK,
+ * explicit args, or an interactive prompt). With no keyfile the database is
+ * plaintext — backward compatible with pre-VS-8 installs.
+ *
+ * @param dataDir  data directory (defaults to `~/.attache/data`)
+ * @param keyOpts  how to obtain the key (passphrase, dek, prompt, env override)
+ */
+export function openDatabase(
+  dataDir = defaultDataDir(),
+  keyOpts: ResolveKeyOptions = {},
+): Database.Database {
   mkdirSync(dataDir, { recursive: true });
+  const { dek } = resolveKeyForDir(dataDir, keyOpts);
   const db = new Database(join(dataDir, "attache.db"));
+  // Keying must happen first, before WAL/foreign_keys/migrate touch pages.
+  if (dek) {
+    applyCipherKey(db, dek);
+  }
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   migrate(db);
@@ -239,6 +274,35 @@ function migrate(db: Database.Database): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS ledger_account (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      funding_account_id TEXT REFERENCES funding_account(id),
+      role TEXT NOT NULL DEFAULT 'asset',
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(tenant_id, funding_account_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS ledger_transfer (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      idempotency_key TEXT NOT NULL,
+      amount_minor INTEGER NOT NULL CHECK(amount_minor > 0),
+      memo TEXT,
+      proposal_id TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(tenant_id, idempotency_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS ledger_entry (
+      id TEXT PRIMARY KEY,
+      transfer_id TEXT NOT NULL REFERENCES ledger_transfer(id),
+      account_id TEXT NOT NULL REFERENCES ledger_account(id),
+      amount_minor INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   ensureColumn(db, "funding_account", "sync_status", "TEXT NOT NULL DEFAULT 'manual'");
@@ -246,4 +310,7 @@ function migrate(db: Database.Database): void {
   ensureColumn(db, "funding_account", "plaid_item_id", "TEXT REFERENCES plaid_item(id)");
   ensureColumn(db, "funding_account", "last_synced_at", "TEXT");
   ensureColumn(db, "obligation", "ingested_event_id", "TEXT REFERENCES ingested_event(id)");
+  ensureColumn(db, "transfer_proposal", "ledger_transfer_id", "TEXT");
+  ensureColumn(db, "plaid_item", "error_code", "TEXT");
+  ensureColumn(db, "plaid_item", "error_message", "TEXT");
 }

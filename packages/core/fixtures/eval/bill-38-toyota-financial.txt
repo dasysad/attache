@@ -1,0 +1,6 @@
+# Eval fixture 38 — Toyota Financial
+Payee: Toyota Financial
+Amount: 119.27
+Due: 2026-02-10
+Cadence: yearly
+Autopay: false

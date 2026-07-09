@@ -1,0 +1,6 @@
+# Eval fixture 6 — AT&T Fiber
+Payee: AT&T Fiber
+Amount: 484.86
+Due: 6/6/2026
+Cadence: once
+Autopay: false

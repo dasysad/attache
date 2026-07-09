@@ -1,0 +1,6 @@
+# Eval fixture 21 — Hulu Live TV
+Payee: Hulu Live TV
+Amount: $283.59
+Due: 9/21/2026
+Cadence: once
+Autopay: false

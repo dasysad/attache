@@ -1,0 +1,6 @@
+# Eval fixture 11 — Spotify Premium
+Payee: Spotify Premium
+Amount: 100.41
+Due: 11/11/2026
+Cadence: yearly
+Autopay: false

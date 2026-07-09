@@ -11,7 +11,8 @@
     "build:arm64": "tauri build --target aarch64-apple-darwin",
     "build:x64": "tauri build --target x86_64-apple-darwin",
     "prepare-bundle": "node scripts/prepare-bundle.mjs",
-    "dev-server": "node scripts/dev-server.mjs"
+    "dev-server": "node scripts/dev-server.mjs",
+    "generate-updater-manifest": "node scripts/generate-latest-json.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0"

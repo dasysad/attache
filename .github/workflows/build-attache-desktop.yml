@@ -1,7 +1,14 @@
 # Attache desktop DMG — GitHub macOS worker (ADR-010).
 #
 # Dispatched by Starflow `release-attache-desktop` via `gh workflow run`.
-# Requires packages/attache-desktop (Tauri 2) — enable steps when that lands.
+# Matches the Celestial unsigned pattern: Tauri build on macOS runners,
+# ad-hoc codesign on the .app (no Apple Developer ID required).
+#
+# When you have an Apple cert later, add the APPLE_* repo secrets and restore
+# the Developer ID block from git history / ADR-012.
+#
+# Updater bundle signing (optional): set TAURI_SIGNING_PRIVATE_KEY after
+#   sf run mint-tauri-updater-key
 #
 # Inputs:
 #   version — tag e.g. desktop-v0.1.0
@@ -42,65 +49,125 @@ jobs:
       - name: Mark checkout safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Check desktop package exists
-        id: check
-        run: |
-          if [ -f packages/attache-desktop/package.json ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::packages/attache-desktop not implemented yet — scaffold only"
-          fi
-
       - uses: actions/setup-node@v4
-        if: steps.check.outputs.ready == 'true'
         with:
           node-version: "22"
 
       - name: Install pnpm
-        if: steps.check.outputs.ready == 'true'
         run: npm install -g pnpm@10
 
       - uses: dtolnay/rust-toolchain@stable
-        if: steps.check.outputs.ready == 'true'
         with:
           targets: ${{ matrix.rust_target }}
 
-      - name: Install dependencies
-        if: steps.check.outputs.ready == 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-${{ matrix.arch }}-
 
-      - name: Build DMG via Tauri
-        if: steps.check.outputs.ready == 'true'
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('packages/attache-desktop/src-tauri/Cargo.toml') }}
+          restore-keys: cargo-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: packages/attache-desktop/src-tauri/target
+          key: cargo-build-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('packages/attache-desktop/src-tauri/Cargo.toml', 'packages/attache-desktop/src-tauri/src/**') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build .app + .dmg via Tauri (unsigned)
         env:
           ATTACHE_BUNDLE_NODE: "1"
+          TAURI_BUILD_VERBOSE: "1"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm --filter @attache/desktop tauri build --target ${{ matrix.rust_target }}
 
-      - name: Placeholder when desktop package missing
-        if: steps.check.outputs.ready != 'true'
-        run: |
-          echo "Desktop package not ready — create packages/attache-desktop first"
-          exit 1
-
       - name: Ad-hoc sign .app
-        if: steps.check.outputs.ready == 'true'
         run: |
-          APP_DIR=$(find packages/attache-desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos -name "*.app" -maxdepth 1 -type d | head -1)
-          [ -n "$APP_DIR" ] && codesign --force --deep --sign - "$APP_DIR"
+          APP_DIR=$(find "packages/attache-desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos" -name "*.app" -maxdepth 1 -type d | head -1)
+          if [ -n "$APP_DIR" ]; then
+            codesign --force --deep --sign - "$APP_DIR"
+            echo "ad-hoc signed: $APP_DIR"
+          else
+            echo "no .app to sign"
+            ls -la "packages/attache-desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/" || true
+            exit 1
+          fi
 
-      - name: Rename DMG
-        if: steps.check.outputs.ready == 'true'
-        id: dmg
+      - name: Stage release artifacts
+        id: stage
         run: |
-          BUNDLE_DIR=packages/attache-desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle/dmg
-          SRC=$(ls "$BUNDLE_DIR"/*.dmg | head -1)
-          DST="attache-desktop-${{ matrix.arch }}-${{ inputs.version }}.dmg"
-          mv "$SRC" "$DST"
-          echo "path=$DST" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          TAG="${{ inputs.version }}"
+          ARCH="${{ matrix.arch }}"
+          TARGET="${{ matrix.rust_target }}"
+          STAGING="release-staging-${ARCH}"
+          mkdir -p "$STAGING"
+
+          DMG_DIR="packages/attache-desktop/src-tauri/target/${TARGET}/release/bundle/dmg"
+          DMG_SRC=$(ls "$DMG_DIR"/*.dmg | head -1)
+          cp "$DMG_SRC" "${STAGING}/attache-desktop-${ARCH}-${TAG}.dmg"
+
+          MACOS_DIR="packages/attache-desktop/src-tauri/target/${TARGET}/release/bundle/macos"
+          TAR_SRC=$(ls "$MACOS_DIR"/*.app.tar.gz 2>/dev/null | head -1 || true)
+          if [ -n "$TAR_SRC" ]; then
+            cp "$TAR_SRC" "${STAGING}/attache-updater-${ARCH}-${TAG}.tar.gz"
+            cp "${TAR_SRC}.sig" "${STAGING}/attache-updater-${ARCH}-${TAG}.tar.gz.sig"
+          fi
+
+          echo "dir=$STAGING" >> "$GITHUB_OUTPUT"
+          ls -lh "$STAGING"
 
       - uses: actions/upload-artifact@v4
-        if: steps.check.outputs.ready == 'true'
         with:
-          name: attache-desktop-dmg-${{ matrix.arch }}-${{ inputs.version }}
-          path: ${{ steps.dmg.outputs.path }}
-          retention-days: 7
+          name: attache-desktop-${{ matrix.arch }}-${{ inputs.version }}
+          path: ${{ steps.stage.outputs.dir }}
+          retention-days: 14
+
+  manifest:
+    name: Build updater manifest
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: attache-desktop-*-${{ inputs.version }}
+          path: staging
+          merge-multiple: true
+
+      - name: Generate latest.json (when updater bundles exist)
+        id: manifest
+        run: |
+          if ! ls staging/attache-updater-*-${{ inputs.version }}.tar.gz >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::No updater bundles — run: sf run mint-tauri-updater-key"
+            exit 0
+          fi
+          node packages/attache-desktop/scripts/generate-latest-json.mjs \
+            staging "${{ inputs.version }}" "${{ github.repository }}" \
+            > staging/latest.json
+          cat staging/latest.json
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.manifest.outputs.skip != 'true'
+        with:
+          name: attache-updater-manifest-${{ inputs.version }}
+          path: staging/latest.json
+          retention-days: 14

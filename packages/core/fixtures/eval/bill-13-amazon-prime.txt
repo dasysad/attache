@@ -1,0 +1,6 @@
+# Eval fixture 13 — Amazon Prime
+Payee: Amazon Prime
+Amount: $156.63
+Due: 2026-01-13
+Cadence: monthly
+Autopay: yes

@@ -1,18 +1,38 @@
 #!/usr/bin/env node
 /**
- * attache CLI — agent-first operations (VS-3 Plaid, VS-4 ingest, VS-4.2 IMAP).
+ * attache CLI — agent-first operations (VS-3 Plaid, VS-4 ingest, VS-4.2 IMAP,
+ * VS-8 vault/encryption).
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createInterface } from "node:readline";
 import {
+  createKeyfile,
+  DatabaseLockedError,
+  defaultDataDir,
+  encryptPlaintextDatabase,
+  encryptPlaintextSecrets,
+  hasKeyfile,
+  readKeyfile,
+  rewrapDek,
+  unwrapDek,
+  vaultStatus,
+  writeKeyfile,
   confirmBillIngest,
   connectImapAccount,
   connectSandboxGmail,
   connectGmailViaLoopback,
   connectSandboxPlaid,
+  connectLivePlaid,
+  createPlaidLinkToken,
+  connectPlaidViaLoopback,
   createDocumentAdapter,
   createEmailAdapter,
   createPlaidAdapter,
+  FakeDocumentAdapter,
+  isPlaidConfigured,
+  LivePlaidAdapter,
+  runBillExtractionEval,
   dropEmlIntoInbox,
   getOrCreateIngestToken,
   getRunwaySnapshot,
@@ -51,7 +71,7 @@ const [, , cmd, sub, ...rest] = process.argv;
 
 async function main(): Promise<void> {
   if (cmd === "plaid") {
-    await plaidCommand(sub);
+    await plaidCommand(sub, rest);
     return;
   }
   if (cmd === "ingest") {
@@ -78,12 +98,165 @@ async function main(): Promise<void> {
     await transferCommand(sub, rest);
     return;
   }
+  if (cmd === "vault") {
+    await vaultCommand(sub, rest);
+    return;
+  }
   printHelp();
   process.exit(cmd ? 1 : 0);
 }
 
-async function plaidCommand(sub: string | undefined): Promise<void> {
-  const db = openDatabase();
+/**
+ * Read a passphrase without echoing it (VS-8). Resolution:
+ *   1. `envVar` (e.g. ATTACHE_PASSPHRASE) — for agents / non-interactive use.
+ *   2. hidden TTY prompt — for humans.
+ * Throws if neither is available (no env + not a TTY), so agents fail loudly
+ * rather than hanging on stdin.
+ */
+async function readPassphrase(label: string, envVar: string): Promise<string> {
+  const fromEnv = process.env[envVar];
+  if (fromEnv) return fromEnv;
+
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      `No TTY for prompt and ${envVar} is unset. Set ${envVar} for non-interactive use.`,
+    );
+  }
+
+  return new Promise<string>((resolvePw) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    // Mute echo: suppress readline's output writes while capturing the answer.
+    const rlAny = rl as unknown as { _writeToOutput: (s: string) => void };
+    let muted = false;
+    rlAny._writeToOutput = (s: string) => {
+      if (!muted) process.stdout.write(s);
+    };
+    process.stdout.write(label);
+    muted = true;
+    rl.question("", (answer) => {
+      muted = false;
+      rl.close();
+      process.stdout.write("\n");
+      resolvePw(answer);
+    });
+  });
+}
+
+/** Open the DB for CLI commands — env first, then interactive passphrase on a TTY. */
+async function openCliDatabase() {
+  try {
+    return openDatabase(defaultDataDir(), { env: process.env });
+  } catch (e) {
+    if (e instanceof DatabaseLockedError && process.stdin.isTTY) {
+      const passphrase = await readPassphrase("Vault passphrase: ", "ATTACHE_PASSPHRASE");
+      return openDatabase(defaultDataDir(), { passphrase });
+    }
+    throw e;
+  }
+}
+
+async function vaultCommand(sub: string | undefined, _args: string[]): Promise<void> {
+  const dataDir = defaultDataDir();
+
+  switch (sub) {
+    case "status": {
+      const status = vaultStatus(dataDir);
+      console.log(JSON.stringify(status, null, 2));
+      break;
+    }
+
+    case "init": {
+      if (hasKeyfile(dataDir)) {
+        console.error("Vault already initialized. Use `attache vault status`.");
+        process.exit(1);
+      }
+      const existing = vaultStatus(dataDir);
+      if (existing.databaseExists) {
+        console.error(
+          "A plaintext database already exists. Use `attache vault encrypt` to migrate it.",
+        );
+        process.exit(1);
+      }
+      const passphrase = await readPassphrase("New passphrase: ", "ATTACHE_PASSPHRASE");
+      if (process.stdin.isTTY && !process.env.ATTACHE_PASSPHRASE) {
+        const confirm = await readPassphrase("Confirm passphrase: ", "__never__");
+        if (confirm !== passphrase) {
+          console.error("Passphrases did not match.");
+          process.exit(1);
+        }
+      }
+      const { keyfile } = createKeyfile(passphrase);
+      writeKeyfile(keyfile, dataDir);
+      // Create the encrypted DB (runs migrations) so the vault is usable.
+      openDatabase(dataDir, { passphrase }).close();
+      console.log(
+        JSON.stringify({ initialized: true, dataDir, encrypted: true }, null, 2),
+      );
+      break;
+    }
+
+    case "encrypt": {
+      if (hasKeyfile(dataDir)) {
+        console.error("Vault is already encrypted.");
+        process.exit(1);
+      }
+      const status = vaultStatus(dataDir);
+      if (!status.databaseExists) {
+        console.error("No database to encrypt. Run `attache vault init` for a fresh vault.");
+        process.exit(1);
+      }
+      const passphrase = await readPassphrase("New passphrase: ", "ATTACHE_PASSPHRASE");
+      if (process.stdin.isTTY && !process.env.ATTACHE_PASSPHRASE) {
+        const confirm = await readPassphrase("Confirm passphrase: ", "__never__");
+        if (confirm !== passphrase) {
+          console.error("Passphrases did not match.");
+          process.exit(1);
+        }
+      }
+      const { keyfile, dek } = createKeyfile(passphrase);
+      // Migrate DB + credential files; persist keyfile only after both succeed.
+      encryptPlaintextDatabase(dataDir, dek);
+      const secrets = encryptPlaintextSecrets(dek);
+      writeKeyfile(keyfile, dataDir);
+      console.log(
+        JSON.stringify(
+          {
+            encrypted: true,
+            dataDir,
+            backup: "attache.db.plaintext.bak (delete after verifying)",
+            secretsMigrated: secrets.migrated,
+            secretsAlreadyEncrypted: secrets.skipped,
+          },
+          null,
+          2,
+        ),
+      );
+      break;
+    }
+
+    case "change-passphrase": {
+      const keyfile = readKeyfile(dataDir);
+      if (!keyfile) {
+        console.error("Vault is not encrypted. Run `attache vault init` or `encrypt` first.");
+        process.exit(1);
+      }
+      const current = await readPassphrase("Current passphrase: ", "ATTACHE_PASSPHRASE");
+      const dek = unwrapDek(keyfile, current); // throws WrongPassphraseError if wrong
+      const next = await readPassphrase("New passphrase: ", "ATTACHE_NEW_PASSPHRASE");
+      // Re-wrap the SAME DEK — no database rekey needed (ADR-011 envelope design).
+      writeKeyfile(rewrapDek(dek, next), dataDir);
+      console.log(JSON.stringify({ changed: true, dataDir }, null, 2));
+      break;
+    }
+
+    default:
+      console.error("Usage: attache vault status|init|encrypt|change-passphrase");
+      process.exit(1);
+  }
+}
+
+async function plaidCommand(sub: string | undefined, args: string[] = []): Promise<void> {
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -96,7 +269,68 @@ async function plaidCommand(sub: string | undefined): Promise<void> {
       case "status": {
         const items = listPlaidItems(db);
         const txCount = listRecentTransactions(db, 100).length;
-        console.log(JSON.stringify({ items, transactionCount: txCount, mode: adapter.mode }, null, 2));
+        console.log(
+          JSON.stringify(
+            {
+              items,
+              transactionCount: txCount,
+              mode: adapter.mode,
+              configured: isPlaidConfigured(),
+              env: process.env.PLAID_ENV ?? (isPlaidConfigured() ? "sandbox" : null),
+            },
+            null,
+            2,
+          ),
+        );
+        break;
+      }
+      case "link-token": {
+        if (adapter.mode !== "live") {
+          console.error("Set PLAID_CLIENT_ID and PLAID_SECRET for live Link.");
+          process.exit(1);
+        }
+        const token = await createPlaidLinkToken(db, adapter as LivePlaidAdapter);
+        console.log(JSON.stringify(token, null, 2));
+        break;
+      }
+      case "connect": {
+        if (adapter.mode !== "live") {
+          console.error("Set PLAID_CLIENT_ID and PLAID_SECRET for live connect.");
+          process.exit(1);
+        }
+        const flags = parseFlags(args);
+        const publicToken =
+          flags["public-token"] ?? process.env.PLAID_PUBLIC_TOKEN?.trim();
+        if (publicToken) {
+          const result = await connectLivePlaid(
+            db,
+            adapter as LivePlaidAdapter,
+            vault,
+            publicToken,
+          );
+          console.log(JSON.stringify(result, null, 2));
+          break;
+        }
+        const noBrowser = args.includes("--no-browser");
+        const port = flags.port ? Number(flags.port) : undefined;
+        console.error("Opening browser for Plaid Link (loopback redirect)…");
+        const result = await connectPlaidViaLoopback(db, adapter as LivePlaidAdapter, vault, {
+          port: Number.isFinite(port) ? port : undefined,
+          openBrowser: !noBrowser,
+        });
+        console.log(
+          JSON.stringify(
+            {
+              itemId: result.itemId,
+              sync: result.sync,
+              redirectUri: result.redirectUri,
+              linkUrl: result.linkUrl,
+              message: "Bank connected — access token stored in vault",
+            },
+            null,
+            2,
+          ),
+        );
         break;
       }
       case "connect-sandbox": {
@@ -107,14 +341,16 @@ async function plaidCommand(sub: string | undefined): Promise<void> {
       case "sync": {
         const results = await syncAllPlaidItems(db, adapter, vault);
         if (!results.length) {
-          console.log("No Plaid items — run: attache plaid connect-sandbox");
+          console.error("No active Plaid items — connect first.");
           process.exit(1);
         }
         console.log(JSON.stringify(results, null, 2));
         break;
       }
       default:
-        console.error("Usage: attache plaid status|connect-sandbox|sync");
+        console.error(
+          "Usage: attache plaid status|link-token|connect|connect-sandbox|sync",
+        );
         process.exit(1);
     }
   } finally {
@@ -141,7 +377,7 @@ function parseFlags(args: string[]): Record<string, string> {
 }
 
 async function imapCommand(imapSub: string | undefined, args: string[]): Promise<void> {
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -187,7 +423,7 @@ async function imapCommand(imapSub: string | undefined, args: string[]): Promise
 }
 
 async function gmailCommand(gmailSub: string | undefined, args: string[]): Promise<void> {
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -252,8 +488,21 @@ async function ingestCommand(sub: string | undefined, args: string[]): Promise<v
     await gmailCommand(args[0], args.slice(1));
     return;
   }
+  if (sub === "eval") {
+    const flags = parseFlags(args);
+    const adapter =
+      flags.adapter === "sandbox"
+        ? new FakeDocumentAdapter()
+        : createDocumentAdapter();
+    const report = await runBillExtractionEval(adapter);
+    console.log(JSON.stringify(report, null, 2));
+    if (!report.meetsPrdTargets.dueDateRecall || !report.meetsPrdTargets.amountPrecision) {
+      process.exit(1);
+    }
+    return;
+  }
 
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -369,7 +618,7 @@ async function ingestCommand(sub: string | undefined, args: string[]): Promise<v
       }
       default:
         console.error(
-          "Usage: attache ingest status|upload|poll-gmail|poll-imap|poll-email|drop-email|simulate-email|confirm|imap …|gmail …",
+          "Usage: attache ingest status|upload|poll-gmail|poll-imap|poll-email|drop-email|simulate-email|confirm|eval|imap …|gmail …",
         );
         process.exit(1);
     }
@@ -379,7 +628,7 @@ async function ingestCommand(sub: string | undefined, args: string[]): Promise<v
 }
 
 async function agentCommand(sub: string | undefined, args: string[]): Promise<void> {
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -443,7 +692,7 @@ async function agentCommand(sub: string | undefined, args: string[]): Promise<vo
 }
 
 async function transferCommand(sub: string | undefined, args: string[]): Promise<void> {
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -520,7 +769,7 @@ async function transferCommand(sub: string | undefined, args: string[]): Promise
 }
 
 async function accountsCommand(sub: string | undefined): Promise<void> {
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -538,7 +787,7 @@ async function accountsCommand(sub: string | undefined): Promise<void> {
 }
 
 async function obligationsCommand(sub: string | undefined): Promise<void> {
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -559,7 +808,7 @@ async function obligationsCommand(sub: string | undefined): Promise<void> {
 }
 
 async function notificationsCommand(sub: string | undefined, args: string[]): Promise<void> {
-  const db = openDatabase();
+  const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
       console.error("Not onboarded — visit http://localhost:8780/onboard");
@@ -605,6 +854,12 @@ Commands:
   attache accounts list                 Funding accounts with balances
   attache obligations list              All bills with display status
 
+  attache vault status                  Encryption state (kdf, db, backup)
+  attache vault init                    Create an encrypted vault (fresh)
+  attache vault encrypt                 Encrypt an existing plaintext database
+  attache vault change-passphrase       Re-wrap the key under a new passphrase
+                                        (env: ATTACHE_PASSPHRASE / ATTACHE_NEW_PASSPHRASE)
+
   attache transfer list [--pending]        Transfer approval queue
   attache transfer submit --from <id> --amount <usd> [--to <id>]
   attache transfer approve <id> [--note ...]
@@ -619,6 +874,8 @@ Commands:
   attache notifications ack <id>          Mark alert read
 
   attache plaid status              JSON status of linked items
+  attache plaid link-token          Link token (requires PLAID_* env)
+  attache plaid connect [--public-token <token>] [--port N] [--no-browser]
   attache plaid connect-sandbox     Link demo Chase (no API keys)
   attache plaid sync                Pull latest transactions
 
@@ -636,6 +893,7 @@ Commands:
   attache ingest drop-email <eml>   Stage .eml in maildrop
   attache ingest simulate-email     Sandbox fixture email
   attache ingest confirm <eventId>  Promote reviewed bill → obligation
+  attache ingest eval [--adapter sandbox]  Bill extraction accuracy report
 `);
 }
 

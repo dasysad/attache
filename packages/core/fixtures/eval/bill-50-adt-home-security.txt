@@ -1,0 +1,6 @@
+# Eval fixture 50 — ADT Home Security
+Vendor: ADT Home Security
+Amount: 345.23
+Due: 2026-02-22
+Cadence: yearly
+Autopay: false

@@ -79,7 +79,9 @@ Extract sidecar (Python/Litestar): **optional** in v0 DMG — document upload pa
 
 ### Signing
 
-Match Celestial v0: **ad-hoc sign** (`codesign --sign -`) — no Apple Developer ID required for dogfood. Document Gatekeeper bypass. Notarization is a later upgrade (repo secrets + entitlement).
+Ad-hoc signing for dogfood (ADR-010 v0). **Upgraded in ADR-012:** Developer ID +
+notarization when CI secrets are set; ad-hoc remains the fallback for forks and
+local builds without an Apple Developer account.
 
 ## Consequences
 

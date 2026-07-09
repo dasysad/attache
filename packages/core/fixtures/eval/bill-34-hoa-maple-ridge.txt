@@ -1,0 +1,6 @@
+# Eval fixture 34 — HOA — Maple Ridge
+Payee: HOA — Maple Ridge
+Amount: 419.77
+Due: 2026-10-06
+Cadence: monthly
+Autopay: yes

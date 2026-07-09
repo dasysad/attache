@@ -1,0 +1,6 @@
+# Eval fixture 31 — Seattle Public Utilities
+Payee: Seattle Public Utilities
+Amount: 204.87
+Due: 7/3/2026
+Cadence: monthly
+Autopay: yes

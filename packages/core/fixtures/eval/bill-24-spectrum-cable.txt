@@ -1,0 +1,6 @@
+# Eval fixture 24 — Spectrum Cable
+Payee: Spectrum Cable
+Amount: 402.20
+Due: 2026-12-24
+Cadence: once
+Autopay: false

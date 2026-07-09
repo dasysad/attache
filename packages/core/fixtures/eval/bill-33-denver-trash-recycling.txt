@@ -1,0 +1,6 @@
+# Eval fixture 33 — Denver Trash & Recycling
+Payee: Denver Trash & Recycling
+Amount: $328.75
+Due: 2026-09-05
+Cadence: once
+Autopay: false

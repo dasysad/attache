@@ -35,6 +35,17 @@ block standalone on SS internal packaging.
 | BL-12 | Licensed ACH / autonomous rules | v1.1 PRD |
 | BL-13 | Starflow transfer DAGs | After LedgerPort |
 
+## Active — v1 hardening ([roadmap](./plans/v1-hardening-roadmap.md))
+
+Post-packaging trust-and-truth work. Not backlog — in progress.
+
+| Slice | Deliverable | Status |
+|-------|-------------|--------|
+| **VS-8** | Encryption at rest ([plan](./plans/vs-8-encryption-at-rest.md), [ADR-011](./adr/011-encryption-at-rest.md)) | ✅ complete |
+| **LedgerPort P0** | Double-entry SQLite journal ([plan](./plans/ledger-port-p0.md), [ADR-001](./adr/001-tigerbeetle-financial-ledger.md)) | ✅ complete |
+| Plaid prod + eval | Production keys + extraction accuracy ([plan](./plans/plaid-production-ingestion-eval.md)) | ✅ complete |
+| Packaging polish | Notarize, Intel DMG, auto-update ([plan](./plans/vs-4-packaging-polish.md)) | ✅ complete |
+
 ## Active — standalone packaging (VS-7)
 
 See [vs-7-standalone-packaging.md](./plans/vs-7-standalone-packaging.md). Not backlog — in progress.
@@ -42,8 +53,8 @@ See [vs-7-standalone-packaging.md](./plans/vs-7-standalone-packaging.md). Not ba
 | Phase | Deliverable |
 |-------|-------------|
 | 1 | `dasysad/homebrew-tap` + CLI Formula | ✅ |
-| 2 | `packages/attache-desktop` (Tauri) + DMG + Cask | 🚧 Cask placeholder sha until DMG |
-| 3 | Signing, R2 CDN, auto-update |
+| 2 | `packages/attache-desktop` (Tauri) + DMG + Cask | ✅ arm64 DMG + Cask shipped (desktop-v0.1.0) |
+| 3 | Signing, R2 CDN, auto-update | ✅ slice 4 — signing + updater ([vs-4](./plans/vs-4-packaging-polish.md)); R2 mirror still backlog |
 
 ## Explicit non-goals (unchanged)
 

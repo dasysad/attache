@@ -1,0 +1,6 @@
+# Eval fixture 46 — Blue Cross Blue Shield
+Payee: Blue Cross Blue Shield
+Amount: 20.23
+Due: 10/18/2026
+Cadence: monthly
+Autopay: yes

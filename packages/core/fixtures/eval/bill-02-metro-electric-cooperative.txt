@@ -1,0 +1,6 @@
+# Eval fixture 2 — Metro Electric Cooperative
+Payee: Metro Electric Cooperative
+Amount: 216.99
+Due: 2026-02-02
+Cadence: yearly
+Autopay: false

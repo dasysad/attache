@@ -1,7 +1,6 @@
-# Bump celestial-intelligence-agency/homebrew-tap when a desktop-v* release is published (ADR-010).
+# Bump celestial-intelligence-agency/homebrew-tap when a desktop-v* release is published (ADR-010 / ADR-012).
 #
-# Celestial precedent: reads sha256 from release asset or sidecar, opens PR
-# against the tap repo updating Casks/attache.rb.
+# Dual-arch Cask: arm64 + x86_64 DMGs from the same GitHub release.
 #
 # Required secret:
 #   HOMEBREW_TAP_TOKEN — contents + PR write on celestial-intelligence-agency/homebrew-tap
@@ -26,17 +25,27 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Download aarch64 DMG and compute sha256
+      - name: Download DMGs and compute sha256
         id: sha
         env:
           TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/attache-desktop-aarch64-${TAG}.dmg"
-          curl -fsSL -o attache.dmg "$URL"
-          SHA256=$(shasum -a 256 attache.dmg | awk '{print $1}')
-          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          URL_ARM="https://github.com/${REPO}/releases/download/${TAG}/attache-desktop-aarch64-${TAG}.dmg"
+          URL_INTEL="https://github.com/${REPO}/releases/download/${TAG}/attache-desktop-x86_64-${TAG}.dmg"
+          curl -fsSL -o attache-arm.dmg "$URL_ARM"
+          curl -fsSL -o attache-intel.dmg "$URL_INTEL"
+          SHA_ARM=$(shasum -a 256 attache-arm.dmg | awk '{print $1}')
+          SHA_INTEL=$(shasum -a 256 attache-intel.dmg | awk '{print $1}')
+          echo "sha256_aarch64=$SHA_ARM" >> "$GITHUB_OUTPUT"
+          echo "sha256_x86_64=$SHA_INTEL" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout attache (bump script)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          path: attache-src
 
       - name: Checkout homebrew-tap
         uses: actions/checkout@v4
@@ -45,23 +54,18 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
-      - name: Update Cask
+      - name: Update dual-arch Cask
         working-directory: tap
         env:
           VERSION: ${{ steps.meta.outputs.version }}
-          SHA256: ${{ steps.sha.outputs.sha256 }}
-          URL: ${{ steps.sha.outputs.url }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          REPO: ${{ github.repository }}
+          SHA256_AARCH64: ${{ steps.sha.outputs.sha256_aarch64 }}
+          SHA256_X86_64: ${{ steps.sha.outputs.sha256_x86_64 }}
         run: |
           set -euo pipefail
-          CASK=Casks/attache.rb
-          if [ ! -f "$CASK" ]; then
-            echo "Create $CASK in homebrew-tap first" >&2
-            exit 1
-          fi
-          sed -i -E "s|^(  version )\"[^\"]+\"|\\1\"${VERSION}\"|" "$CASK"
-          sed -i -E "s|^(  sha256 )\"[^\"]+\"|\\1\"${SHA256}\"|"  "$CASK"
-
-          if git diff --quiet "$CASK"; then
+          ruby "${GITHUB_WORKSPACE}/attache-src/packages/attache-desktop/scripts/bump-cask-dual-arch.rb"
+          if git diff --quiet Casks/attache.rb; then
             echo "Cask already at ${VERSION} — no PR needed"
             echo "noop=true" >> "$GITHUB_ENV"
           fi
@@ -80,10 +84,10 @@ jobs:
           git config user.email "bump-bot@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add Casks/attache.rb
-          git commit -m "attache ${VERSION}"
+          git commit -m "attache ${VERSION} (arm64 + x86_64)"
           git push -u origin "$BRANCH"
           gh pr create \
             --title "attache ${VERSION}" \
-            --body "Automated bump for ${TAG}." \
+            --body "Automated dual-arch bump for ${TAG}." \
             --base main \
             --head "$BRANCH"

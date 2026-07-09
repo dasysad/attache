@@ -1,0 +1,6 @@
+# Eval fixture 1 — City Water Department
+Vendor: City Water Department
+Amount: $53.92
+Due: 1/1/2026
+Cadence: monthly
+Autopay: yes

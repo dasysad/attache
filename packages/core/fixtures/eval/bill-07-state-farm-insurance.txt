@@ -1,0 +1,6 @@
+# Eval fixture 7 — State Farm Insurance
+Payee: State Farm Insurance
+Amount: 409.65
+Due: 2026-07-07
+Cadence: monthly
+Autopay: yes

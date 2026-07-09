@@ -1,0 +1,6 @@
+# Eval fixture 43 — Wells Fargo Mortgage
+Vendor: Wells Fargo Mortgage
+Amount: 17.34
+Due: 2026-07-15
+Cadence: monthly
+Autopay: yes

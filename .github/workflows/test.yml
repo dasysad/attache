@@ -1,0 +1,38 @@
+# Unit + eval tests on every push/PR (v1 hardening slice 3 follow-up).
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pnpm test + ingest eval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run workspace tests
+        run: pnpm test
+
+      - name: Bill extraction eval (sandbox adapter)
+        run: |
+          pnpm --filter @attache/cli build
+          node packages/cli/dist/main.js ingest eval --adapter sandbox

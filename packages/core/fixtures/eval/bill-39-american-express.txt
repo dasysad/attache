@@ -1,0 +1,6 @@
+# Eval fixture 39 — American Express
+Payee: American Express
+Amount: 319.03
+Due: 2026-03-11
+Cadence: once
+Autopay: false

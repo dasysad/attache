@@ -1,0 +1,6 @@
+# Eval fixture 20 — Disney+
+Payee: Disney+
+Amount: 204.56
+Due: 2026-08-20
+Cadence: yearly
+Autopay: false

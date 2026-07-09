@@ -1,0 +1,6 @@
+# Eval fixture 14 — Apple iCloud+
+Payee: Apple iCloud+
+Amount: 17.83
+Due: 2026-02-14
+Cadence: yearly
+Autopay: false

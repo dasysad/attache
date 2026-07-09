@@ -1,0 +1,6 @@
+# Eval fixture 28 — Duke Energy
+Payee: Duke Energy
+Amount: 458.06
+Due: 2026-04-28
+Cadence: monthly
+Autopay: yes

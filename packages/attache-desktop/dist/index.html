@@ -8,15 +8,35 @@
   </style>
 </head>
 <body>
-  <p>Starting Attache…</p>
+  <p id="msg">Starting Attache…</p>
   <script>
-    const url = "http://127.0.0.1:8780/";
+    const base = "http://127.0.0.1:8780";
     const deadline = Date.now() + 120_000;
-    (function poll() {
-      fetch(url, { mode: "no-cors" }).then(() => location.replace(url)).catch(() => {
-        if (Date.now() < deadline) setTimeout(poll, 300);
-      });
-    })();
+
+    async function poll() {
+      try {
+        const res = await fetch(base + "/health");
+        if (res.ok) {
+          location.replace(base + "/");
+          return;
+        }
+        if (res.status === 503) {
+          // Encrypted DB locked — unlock form is served by the server.
+          location.replace(base + "/vault/unlock");
+          return;
+        }
+      } catch {
+        /* server not up yet */
+      }
+      if (Date.now() < deadline) {
+        setTimeout(poll, 300);
+      } else {
+        document.getElementById("msg").textContent =
+          "Could not reach Attache. Try restarting the app.";
+      }
+    }
+
+    poll();
   </script>
 </body>
 </html>

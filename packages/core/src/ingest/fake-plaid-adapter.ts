@@ -91,11 +91,3 @@ function daysAgo(n: number): string {
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 }
-
-export function createPlaidAdapter(): PlaidIngestPort {
-  if (process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET) {
-    // Live adapter ships in @attache/server when keys are configured.
-    return new FakePlaidAdapter();
-  }
-  return new FakePlaidAdapter();
-}

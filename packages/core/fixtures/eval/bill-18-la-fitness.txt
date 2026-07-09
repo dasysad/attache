@@ -1,0 +1,6 @@
+# Eval fixture 18 — LA Fitness
+Payee: LA Fitness
+Amount: 232.07
+Due: 2026-06-18
+Cadence: once
+Autopay: false

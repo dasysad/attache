@@ -1,6 +1,55 @@
 /** @attache/core — local-first household finance domain logic. */
 export { openDatabase, defaultDataDir, defaultVaultDir, defaultDocumentsDir, defaultInboxDir } from "./db.js";
 export {
+  createKeyfile,
+  readKeyfile,
+  writeKeyfile,
+  hasKeyfile,
+  keyfilePath,
+  unwrapDek,
+  rewrapDek,
+  deriveKek,
+  DEFAULT_SCRYPT_PARAMS,
+  WrongPassphraseError,
+  KeyfileError,
+  type Keyfile,
+  type ScryptParams,
+} from "./crypto/keyring.js";
+export {
+  resolveKey,
+  resolveKeyForDir,
+  setSessionDek,
+  clearSessionDek,
+  DatabaseLockedError,
+  type KeySource,
+  type ResolvedKey,
+  type ResolveKeyOptions,
+} from "./crypto/key-provider.js";
+export {
+  isDatabaseUnlocked,
+  assertDatabaseUnlocked,
+  unlockDatabaseWithPassphrase,
+  databaseLockedHelp,
+} from "./crypto/unlock.js";
+export {
+  encryptPlaintextDatabase,
+  MigrationError,
+  DB_FILENAME,
+} from "./crypto/migrate.js";
+export {
+  encryptPlaintextSecrets,
+  countSecretFiles,
+  SecretMigrationError,
+  type SecretMigrationResult,
+} from "./vault/migrate-secrets.js";
+export {
+  isEncryptedSecretFile,
+  sealSecretUtf8,
+  openSecretUtf8,
+  VaultSecretError,
+} from "./crypto/secret-file.js";
+export { vaultStatus, type VaultStatus } from "./crypto/status.js";
+export {
   getOrCreateSiteId,
   registerPeer,
   touchPeer,
@@ -62,15 +111,33 @@ export {
   setVaultForTests,
   type VaultPort,
 } from "./vault/local-vault.js";
-export { FakePlaidAdapter, createPlaidAdapter } from "./ingest/fake-plaid-adapter.js";
+export { FakePlaidAdapter } from "./ingest/fake-plaid-adapter.js";
+export { LivePlaidAdapter } from "./ingest/live-plaid-adapter.js";
+export { createPlaidAdapter, isPlaidConfigured } from "./plaid/create-adapter.js";
 export type { PlaidIngestPort, PlaidSyncSnapshot, PlaidLinkedAccount } from "./ingest/plaid-port.js";
 export {
+  PlaidError,
+  mapPlaidApiError,
+  plaidErrorHelp,
+  type PlaidErrorCode,
+} from "./plaid/errors.js";
+export { loadPlaidConfig, type PlaidConfig } from "./plaid/config.js";
+export {
   connectSandboxPlaid,
+  connectLivePlaid,
+  createPlaidLinkToken,
   syncAllPlaidItems,
   syncPlaidItem,
   accountLabelForTransaction,
   type SyncResult,
 } from "./plaid/sync.js";
+export {
+  connectPlaidViaLoopback,
+  plaidLoopbackRedirectUri,
+  PLAID_LOOPBACK_CALLBACK_PATH,
+  DEFAULT_PLAID_LOOPBACK_PORT,
+} from "./plaid/loopback-connect.js";
+export { plaidHostedLinkUrl } from "./net/loopback.js";
 export {
   listPlaidItems,
   listRecentTransactions,
@@ -82,6 +149,14 @@ export {
   parseTextBill,
 } from "./ingest/fake-document-adapter.js";
 export { RemoteDocumentAdapter, ResilientDocumentAdapter } from "./ingest/remote-document-adapter.js";
+export {
+  runBillExtractionEval,
+  loadEvalManifest,
+  defaultEvalManifestPath,
+  type EvalReport,
+  type EvalCaseResult,
+  type FieldScore,
+} from "./eval/bill-extraction.js";
 export type {
   DocumentExtractionPort,
   BillExtraction,
@@ -181,6 +256,27 @@ export type {
   CreateTransferProposalInput,
   ListTransferProposalsOptions,
 } from "./agent/transfer-types.js";
+export type { LedgerPort } from "./ledger/port.js";
+export {
+  SqliteLedgerAdapter,
+  getLedger,
+  setLedgerForTests,
+} from "./ledger/sqlite-adapter.js";
+export {
+  InsufficientFundsError,
+  LedgerInvariantError,
+} from "./ledger/errors.js";
+export {
+  usdToMinor,
+  minorToUsd,
+  type LedgerAccount,
+  type LedgerTransfer,
+  type LedgerEntry,
+  type PostTransferInput,
+  type PostTransferResult,
+  type LedgerHistoryEntry,
+} from "./ledger/types.js";
+export { syncFundingBalanceProjection } from "./ledger/projection.js";
 export {
   refreshNotifications,
   type RefreshNotificationsResult,

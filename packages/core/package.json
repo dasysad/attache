@@ -17,8 +17,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "better-sqlite3": "^11.8.1",
+    "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.11.1",
     "imapflow": "^1.0.198",
+    "plaid": "^43.0.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

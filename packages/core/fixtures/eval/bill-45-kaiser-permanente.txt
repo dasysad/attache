@@ -1,0 +1,6 @@
+# Eval fixture 45 — Kaiser Permanente
+Payee: Kaiser Permanente
+Amount: $272.55
+Due: 2026-09-17
+Cadence: once
+Autopay: false

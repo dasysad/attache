@@ -1,0 +1,6 @@
+# Eval fixture 30 — Austin Energy
+Payee: Austin Energy
+Amount: 283.97
+Due: 2026-06-02
+Cadence: once
+Autopay: false

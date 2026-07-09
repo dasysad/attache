@@ -1,0 +1,6 @@
+# Eval fixture 17 — Planet Fitness
+Payee: Planet Fitness
+Amount: $295.53
+Due: 2026-05-17
+Cadence: yearly
+Autopay: false

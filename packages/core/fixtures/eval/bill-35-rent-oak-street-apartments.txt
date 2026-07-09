@@ -1,0 +1,6 @@
+# Eval fixture 35 — Rent — Oak Street Apartments
+Payee: Rent — Oak Street Apartments
+Amount: 387.25
+Due: 2026-11-07
+Cadence: yearly
+Autopay: false

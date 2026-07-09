@@ -1,0 +1,6 @@
+# Eval fixture 8 — Geico Auto Insurance
+Vendor: Geico Auto Insurance
+Amount: 368.42
+Due: 2026-08-08
+Cadence: yearly
+Autopay: false

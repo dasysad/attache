@@ -1,15 +1,17 @@
 # @attache/desktop
 
 Attache desktop app — Tauri 2 shell over the loopback `@attache/server` UI.
-Implements [ADR-010](../../docs/adr/010-release-pipeline-starflow.md).
+Implements [ADR-010](../../docs/adr/010-release-pipeline-starflow.md) and
+[ADR-012](../../docs/adr/012-desktop-signing-and-updates.md).
 
 ## Architecture
 
 ```text
 Attache.app (Tauri / WKWebView)
   ├── WebView → http://127.0.0.1:8780  (SSR + Lit UI)
-  └── Node sidecar (release only)
-        node dist/index.js  (server-bundle in Resources)
+  ├── Node sidecar (release only)
+  │     node dist/index.js  (server-bundle in Resources)
+  └── Updater (release) → GitHub Releases latest.json
 ```
 
 Data lives in `~/.attache/` — same as CLI.
@@ -23,12 +25,6 @@ pnpm --filter @attache/desktop dev
 
 `beforeDevCommand` builds core/ui/server and starts `node dist/index.js` on :8780.
 
-Override UI URL:
-
-```bash
-ATTACHE_UI_URL=http://127.0.0.1:8780/app/accounts pnpm --filter @attache/desktop dev
-```
-
 ## Build DMG (local)
 
 ```bash
@@ -38,13 +34,13 @@ pnpm --filter @attache/desktop build:arm64
 pnpm --filter @attache/desktop build:x64
 ```
 
-Output:
+With Apple credentials:
 
-```text
-packages/attache-desktop/src-tauri/target/release/bundle/dmg/Attache_0.1.0_aarch64.dmg
+```bash
+export APPLE_SIGNING_IDENTITY="Developer ID Application: …"
+export APPLE_ID=… APPLE_PASSWORD=… APPLE_TEAM_ID=…
+pnpm --filter @attache/desktop build:arm64
 ```
-
-`prepare-bundle.mjs` embeds Node 22 when `ATTACHE_BUNDLE_NODE=1` (set in `beforeBuildCommand`).
 
 ## Release (Starflow)
 
@@ -52,15 +48,25 @@ packages/attache-desktop/src-tauri/target/release/bundle/dmg/Attache_0.1.0_aarch
 sf run release-attache-desktop --input version=desktop-v0.1.0
 ```
 
-## Gatekeeper (ad-hoc signed builds)
+Produces per-arch DMGs, signed updater `.tar.gz`, and `latest.json`.
+
+## Gatekeeper (unsigned builds)
+
+Right-click → Open on first launch, or `xattr -cr "/Applications/Attache.app"`.
+
+## Updater key (one-time)
 
 ```bash
-xattr -cr "/Applications/Attache.app"
+sf run mint-tauri-updater-key
 ```
 
-## Install (after Homebrew tap lands)
+## Release (Starflow)
 
 ```bash
-brew tap dasysad/tap
+brew tap celestial-intelligence-agency/tap
 brew install --cask attache
 ```
+
+## Updater keys
+
+See [vs-4-packaging-polish.md](../../docs/plans/vs-4-packaging-polish.md).

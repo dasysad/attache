@@ -1,0 +1,6 @@
+# Eval fixture 37 — Chase Auto Loan
+Payee: Chase Auto Loan
+Amount: $437.75
+Due: 2026-01-09
+Cadence: monthly
+Autopay: yes

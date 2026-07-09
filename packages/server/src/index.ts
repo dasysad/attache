@@ -6,6 +6,11 @@ import {
   computeSolvencyForecast,
   confirmBillIngest,
   connectSandboxPlaid,
+  connectLivePlaid,
+  createPlaidLinkToken,
+  isPlaidConfigured,
+  plaidHostedLinkUrl,
+  LivePlaidAdapter,
   connectImapAccount,
   connectSandboxGmail,
   connectGmailFromAuthCode,
@@ -54,6 +59,10 @@ import {
   markSetupComplete,
   obligationDisplayStatus,
   openDatabase,
+  hasKeyfile,
+  isDatabaseUnlocked,
+  unlockDatabaseWithPassphrase,
+  WrongPassphraseError,
   pollImapIngest,
   pollGmailIngest,
   PRICING_SCENARIOS,
@@ -81,6 +90,7 @@ import {
   setNavUnreadCount,
   setTransferPendingCount,
   transfersPage,
+  vaultUnlockPage,
 } from "./views.js";
 import { syncNotificationsSync } from "./notify-sync.js";
 import { resolvePublicRoot } from "./paths.js";
@@ -90,6 +100,54 @@ const app = new Hono();
 
 const publicRoot = resolvePublicRoot();
 app.use("/static/*", serveStatic({ root: publicRoot }));
+
+/** VS-8: paths that work while the encrypted database is locked. */
+function isVaultPublicPath(path: string): boolean {
+  return (
+    path.startsWith("/static") ||
+    path === "/health" ||
+    path === "/vault/unlock"
+  );
+}
+
+/** Redirect to unlock form when the DB is encrypted and no key is available. */
+app.use("*", async (c, next) => {
+  const path = new URL(c.req.url).pathname;
+  if (isVaultPublicPath(path)) return next();
+  if (!isDatabaseUnlocked()) {
+    return c.redirect("/vault/unlock");
+  }
+  return next();
+});
+
+app.get("/health", (c) => {
+  const encrypted = hasKeyfile();
+  if (!isDatabaseUnlocked()) {
+    return c.json({ status: "locked", encrypted }, 503);
+  }
+  return c.json({ status: "ok", encrypted });
+});
+
+app.get("/vault/unlock", (c) => {
+  if (isDatabaseUnlocked()) return c.redirect("/");
+  return c.html(vaultUnlockPage());
+});
+
+app.post("/vault/unlock", async (c) => {
+  if (isDatabaseUnlocked()) return c.redirect("/");
+  const body = await c.req.parseBody();
+  const passphrase = String(body.passphrase ?? "");
+  try {
+    unlockDatabaseWithPassphrase(passphrase);
+    return c.redirect("/");
+  } catch (e) {
+    const msg =
+      e instanceof WrongPassphraseError
+        ? "Incorrect passphrase. Try again."
+        : "Could not unlock the vault.";
+    return c.html(vaultUnlockPage(msg), 401);
+  }
+});
 
 function withDb<T>(fn: (db: ReturnType<typeof openDatabase>) => T): T {
   const db = openDatabase();
@@ -521,6 +579,7 @@ app.get("/app/plaid", (c) =>
         countPlaidLinkedAccounts(db),
         msg ? String(msg) : undefined,
         err ? String(err) : undefined,
+        isPlaidConfigured(),
       ),
     );
   }),
@@ -532,6 +591,67 @@ app.post("/app/plaid/connect-sandbox", async (c) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     const adapter = createPlaidAdapter();
     const { sync } = await connectSandboxPlaid(db, adapter, getVault());
+    return c.redirect(
+      `/app/plaid?msg=${encodeURIComponent(`Connected — ${sync.transactionsNew} transactions imported`)}`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "connect failed";
+    return c.redirect(`/app/plaid?error=${encodeURIComponent(msg)}`);
+  } finally {
+    db.close();
+  }
+});
+
+app.get("/app/plaid/connect", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    if (!isPlaidConfigured()) {
+      return c.redirect("/app/plaid?error=Plaid+not+configured");
+    }
+    const adapter = createPlaidAdapter();
+    if (adapter.mode !== "live") {
+      return c.redirect("/app/plaid?error=Plaid+not+configured");
+    }
+    const host = c.req.header("host") ?? "localhost:8780";
+    const redirectUri = `http://${host}/app/plaid/callback`;
+    const { linkToken } = await createPlaidLinkToken(
+      db,
+      adapter as LivePlaidAdapter,
+      redirectUri,
+    );
+    return c.redirect(plaidHostedLinkUrl(linkToken));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "link failed";
+    return c.redirect(`/app/plaid?error=${encodeURIComponent(msg)}`);
+  } finally {
+    db.close();
+  }
+});
+
+app.get("/app/plaid/callback", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const err = c.req.query("error");
+    if (err) {
+      const detail = c.req.query("error_message") ?? err;
+      return c.redirect(`/app/plaid?error=${encodeURIComponent(String(detail))}`);
+    }
+    const publicToken = c.req.query("public_token");
+    if (!publicToken) {
+      return c.redirect("/app/plaid?error=Missing+public_token");
+    }
+    const adapter = createPlaidAdapter();
+    if (adapter.mode !== "live") {
+      return c.redirect("/app/plaid?error=Plaid+not+configured");
+    }
+    const { sync } = await connectLivePlaid(
+      db,
+      adapter as LivePlaidAdapter,
+      getVault(),
+      String(publicToken),
+    );
     return c.redirect(
       `/app/plaid?msg=${encodeURIComponent(`Connected — ${sync.transactionsNew} transactions imported`)}`,
     );
@@ -1001,5 +1121,15 @@ app.get("/api/costs/estimate.json", async (c) => {
 });
 
 const port = Number(process.env.PORT ?? 8780);
-console.log(`Attache VS-6 → http://localhost:${port}`);
-serve({ fetch: app.fetch, port });
+if (process.env.ATTACHE_SERVER_AUTOSTART !== "0") {
+  if (hasKeyfile() && !isDatabaseUnlocked()) {
+    console.warn(
+      "Attache: encrypted database is locked — open /vault/unlock or set ATTACHE_PASSPHRASE",
+    );
+  } else {
+    console.log(`Attache → http://localhost:${port}`);
+  }
+  serve({ fetch: app.fetch, port });
+}
+
+export { app };

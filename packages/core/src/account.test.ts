@@ -49,8 +49,8 @@ describe("account management", () => {
     vaultDir = mkdtempSync(join(tmpdir(), "attache-vault-"));
     const db = openDatabase(dataDir);
     createTenant(db, { householdName: "Home", holderDisplayName: "A" });
-    setVaultForTests(new LocalVaultPort(vaultDir));
-    await connectSandboxPlaid(db, new FakePlaidAdapter(), new LocalVaultPort(vaultDir));
+    setVaultForTests(new LocalVaultPort(vaultDir, null));
+    await connectSandboxPlaid(db, new FakePlaidAdapter(), new LocalVaultPort(vaultDir, null));
     const plaidAcct = listAccounts(db).find((a) => a.plaidAccountId)!;
     expect(() => updateManualAccount(db, plaidAcct.id, { balanceUsd: 1 })).toThrow(
       /plaid/i,

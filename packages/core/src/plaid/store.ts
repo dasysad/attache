@@ -17,6 +17,8 @@ interface ItemRow {
   vault_credential_ref: string;
   status: string;
   last_sync_at: string | null;
+  error_code: string | null;
+  error_message: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +32,8 @@ function mapItem(row: ItemRow): PlaidItem {
     vaultCredentialRef: row.vault_credential_ref,
     status: row.status as PlaidItem["status"],
     lastSyncAt: row.last_sync_at,
+    errorCode: row.error_code,
+    errorMessage: row.error_message,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -74,8 +78,8 @@ export function createPlaidItem(
   const id = randomUUID();
   db.prepare(
     `INSERT INTO plaid_item
-     (id, tenant_id, external_item_id, institution_name, vault_credential_ref, status, last_sync_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'active', NULL, ?, ?)`,
+     (id, tenant_id, external_item_id, institution_name, vault_credential_ref, status, last_sync_at, error_code, error_message, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'active', NULL, NULL, NULL, ?, ?)`,
   ).run(
     id,
     tenantId,
@@ -93,8 +97,23 @@ export function createPlaidItem(
 export function touchPlaidItemSync(db: Database.Database, itemId: string): void {
   const now = new Date().toISOString();
   db.prepare(
-    `UPDATE plaid_item SET last_sync_at = ?, updated_at = ?, status = 'active' WHERE id = ?`,
+    `UPDATE plaid_item SET last_sync_at = ?, updated_at = ?, status = 'active',
+       error_code = NULL, error_message = NULL WHERE id = ?`,
   ).run(now, now, itemId);
+}
+
+/** Record a Plaid API failure on the item for UI/agent re-link prompts. */
+export function markPlaidItemError(
+  db: Database.Database,
+  itemId: string,
+  errorCode: string,
+  errorMessage: string,
+): void {
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE plaid_item SET status = 'error', error_code = ?, error_message = ?,
+       updated_at = ? WHERE id = ?`,
+  ).run(errorCode, errorMessage.slice(0, 500), now, itemId);
 }
 
 interface TxRow {

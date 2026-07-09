@@ -7,6 +7,12 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  assertDatabaseUnlocked,
+  databaseLockedHelp,
+  DatabaseLockedError,
+  WrongPassphraseError,
+} from "@attache/core";
 import { registerAttacheTools } from "./tools.js";
 
 const server = new McpServer({
@@ -17,6 +23,19 @@ const server = new McpServer({
 registerAttacheTools(server);
 
 async function main(): Promise<void> {
+  try {
+    assertDatabaseUnlocked();
+  } catch (e) {
+    if (e instanceof DatabaseLockedError) {
+      console.error(databaseLockedHelp());
+    } else if (e instanceof WrongPassphraseError) {
+      console.error("ATTACHE_PASSPHRASE is incorrect — cannot unlock the database.");
+    } else {
+      console.error(e instanceof Error ? e.message : e);
+    }
+    process.exit(1);
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

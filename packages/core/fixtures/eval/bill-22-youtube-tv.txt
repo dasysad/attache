@@ -1,0 +1,6 @@
+# Eval fixture 22 — YouTube TV
+Vendor: YouTube TV
+Amount: 393.84
+Due: 2026-10-22
+Cadence: monthly
+Autopay: yes

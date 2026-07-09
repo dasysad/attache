@@ -1,0 +1,6 @@
+# Eval fixture 5 — Verizon Wireless
+Payee: Verizon Wireless
+Amount: $365.26
+Due: 2026-05-05
+Cadence: yearly
+Autopay: false

@@ -64,7 +64,7 @@ describe("VS-5.1 transfer queue", () => {
     db.close();
   });
 
-  it("executes manual internal transfer on approve", () => {
+  it("executes manual internal transfer on approve via ledger", () => {
     const { db } = setup();
     const checking = listAccounts(db).find((a) => a.name === "Checking")!;
     const savings = listAccounts(db).find((a) => a.name === "Savings")!;
@@ -79,6 +79,26 @@ describe("VS-5.1 transfer queue", () => {
     const after = listAccounts(db);
     expect(after.find((a) => a.id === checking.id)!.balanceUsd).toBe(4250);
     expect(after.find((a) => a.id === savings.id)!.balanceUsd).toBe(10750);
+
+    const xfer = db
+      .prepare(`SELECT ledger_transfer_id FROM transfer_proposal WHERE id = ?`)
+      .get(record.id) as { ledger_transfer_id: string };
+    expect(xfer.ledger_transfer_id).toBeTruthy();
+    db.close();
+  });
+
+  it("approve is idempotent at the ledger layer on retry", () => {
+    const { db } = setup();
+    const checking = listAccounts(db).find((a) => a.name === "Checking")!;
+    const savings = listAccounts(db).find((a) => a.name === "Savings")!;
+    const record = createTransferProposal(db, {
+      fromAccountId: checking.id,
+      toAccountId: savings.id,
+      amountUsd: 100,
+    });
+    approveTransferProposal(db, record.id);
+    expect(() => approveTransferProposal(db, record.id)).toThrow(/executed/i);
+    expect(listAccounts(db).find((a) => a.id === checking.id)!.balanceUsd).toBe(4900);
     db.close();
   });
 

@@ -11,9 +11,13 @@ import {
   createPlaidItem,
   getPlaidItem,
   listPlaidItems,
+  markPlaidItemError,
   touchPlaidItemSync,
   upsertBankTransaction,
 } from "./store.js";
+import { PlaidError, plaidErrorHelp } from "./errors.js";
+import type { LivePlaidAdapter } from "../ingest/live-plaid-adapter.js";
+import { getTenant } from "../tenant.js";
 
 export interface SyncResult {
   itemId: string;
@@ -47,6 +51,41 @@ export async function connectSandboxPlaid(
   return { itemId: item.id, sync };
 }
 
+/**
+ * Connect a live Plaid item from a Link public_token (slice 3).
+ * Agents obtain public_token via Link UI or sandbox Plaid Link tester.
+ */
+export async function connectLivePlaid(
+  db: Database.Database,
+  adapter: LivePlaidAdapter,
+  vault: VaultPort,
+  publicToken: string,
+): Promise<{ itemId: string; sync: SyncResult }> {
+  const exchanged = await adapter.exchangePublicToken(publicToken);
+  const vaultRef = `plaid/item/${exchanged.externalItemId}`;
+  vault.set(vaultRef, exchanged.accessToken);
+
+  const item = createPlaidItem(db, {
+    externalItemId: exchanged.externalItemId,
+    institutionName: exchanged.institutionName,
+    vaultCredentialRef: vaultRef,
+  });
+
+  const sync = await syncPlaidItem(db, item.id, adapter, vault);
+  return { itemId: item.id, sync };
+}
+
+/** Create a Link token for the current tenant (live adapter only). */
+export async function createPlaidLinkToken(
+  db: Database.Database,
+  adapter: LivePlaidAdapter,
+  redirectUri?: string,
+): Promise<{ linkToken: string; expiration: string }> {
+  const tenant = getTenant(db);
+  if (!tenant) throw new Error("not onboarded");
+  return adapter.createLinkToken(tenant.id, redirectUri);
+}
+
 /** Sync every active Plaid item for the current tenant. */
 export async function syncAllPlaidItems(
   db: Database.Database,
@@ -72,10 +111,20 @@ export async function syncPlaidItem(
 
   const accessToken = vault.get(item.vaultCredentialRef);
   if (!accessToken) {
+    markPlaidItemError(db, itemId, "INVALID_ACCESS_TOKEN", "Vault credential missing");
     throw new Error(`vault credential missing: ${item.vaultCredentialRef}`);
   }
 
-  const snapshot = await adapter.fetchSnapshot(accessToken);
+  let snapshot;
+  try {
+    snapshot = await adapter.fetchSnapshot(accessToken);
+  } catch (e) {
+    if (e instanceof PlaidError) {
+      markPlaidItemError(db, itemId, e.code, e.message);
+      throw new Error(plaidErrorHelp(e));
+    }
+    throw e;
+  }
   let accountsUpdated = 0;
   let transactionsNew = 0;
   let transactionsSkipped = 0;

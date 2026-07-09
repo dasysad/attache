@@ -823,6 +823,7 @@ export function plaidPage(
   linkedAccountCount: number,
   message?: string,
   error?: string,
+  livePlaid = false,
 ): string {
   const passThrough = estimateMonthlyCost({
     platformEnabled: false,
@@ -859,6 +860,9 @@ export function plaidPage(
   ${itemList}
 
   <div class="wizard-actions">
+    ${livePlaid
+      ? `<a href="/app/plaid/connect" class="btn-link primary">Connect bank (Plaid Link)</a>`
+      : ""}
     <form method="post" action="/app/plaid/connect-sandbox" style="display:inline">
       <button type="submit">Connect sandbox bank</button>
     </form>
@@ -869,7 +873,7 @@ export function plaidPage(
       : ""}
   </div>
 
-  <p class="meta">Agent: <code>attache plaid connect-sandbox</code> · <code>attache plaid sync</code></p>
+  <p class="meta">Agent: <code>attache plaid connect</code> · <code>attache plaid connect-sandbox</code> · <code>attache plaid sync</code></p>
   ${linkedAccountCount > 0 ? `<p class="meta">${passThrough.disclaimer}</p>` : ""}
 </section>`,
   );
@@ -1087,4 +1091,47 @@ export async function parseCostForm(c: Context): Promise<{
     snaptradeUserCount: Number(get("snaptradeUserCount") ?? 0),
     cloudOcrPages: Number(get("cloudOcrPages") ?? 0),
   };
+}
+
+/**
+ * VS-8 — standalone unlock page when the encrypted DB has no key in this process.
+ * No nav/header: every other route is gated until unlock succeeds.
+ */
+export function vaultUnlockPage(error?: string): string {
+  const errBlock = error
+    ? `<p class="vault-error" role="alert">${escapeHtml(error)}</p>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unlock vault — Attache</title>
+  <link rel="stylesheet" href="/static/attache.css" />
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; margin: 0; background: #0f1419; color: #e8eef4; }
+    .vault-card { width: min(420px, 92vw); padding: 2rem; border: 1px solid #2a3540; border-radius: 12px; background: #151b22; }
+    .vault-card h1 { margin: 0 0 0.5rem; font-size: 1.35rem; }
+    .vault-card p { color: #9fb0c0; line-height: 1.5; }
+    .vault-error { color: #f87171; background: #2a1515; padding: 0.75rem; border-radius: 8px; }
+    label { display: block; margin: 1.25rem 0 0.35rem; font-weight: 600; }
+    input[type=password] { width: 100%; padding: 0.65rem 0.75rem; border-radius: 8px; border: 1px solid #3a4a58; background: #0f1419; color: inherit; box-sizing: border-box; }
+    button { margin-top: 1.25rem; width: 100%; padding: 0.75rem; border: 0; border-radius: 8px; background: #3b82f6; color: #fff; font-weight: 600; cursor: pointer; }
+    .vault-foot { margin-top: 1.5rem; font-size: 0.85rem; color: #6b7c8d; }
+  </style>
+</head>
+<body>
+  <section class="vault-card">
+    <h1>Unlock Attache</h1>
+    <p>Your household data is encrypted. Enter the vault passphrase to continue.</p>
+    ${errBlock}
+    <form method="post" action="/vault/unlock">
+      <label for="passphrase">Passphrase</label>
+      <input id="passphrase" name="passphrase" type="password" autocomplete="current-password" required autofocus />
+      <button type="submit">Unlock</button>
+    </form>
+    <p class="vault-foot">Agents: set <code>ATTACHE_PASSPHRASE</code> or <code>ATTACHE_DEK</code> before starting the server. Lost passphrase = lost data.</p>
+  </section>
+</body>
+</html>`;
 }

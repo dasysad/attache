@@ -1,0 +1,6 @@
+# Eval fixture 41 — Capital One Venture
+Payee: Capital One Venture
+Amount: $230.94
+Due: 5/13/2026
+Cadence: yearly
+Autopay: false

@@ -4,9 +4,10 @@ name: attache
 # workers — does not build DMGs locally on Linux entmoot.
 #
 # Usage:
+#   sf run mint-tauri-updater-key          # once — ss vault + GH secrets
 #   sf run release-attache-desktop --input version=desktop-v0.1.0
 #
-# Requires: gh CLI authenticated, packages/attache-desktop (Tauri) when enabled.
+# Unsigned DMGs are fine without Apple Developer ID (Celestial pattern).
 
 repo: dasysad/attache
 branch: main
@@ -25,14 +26,38 @@ pipelines:
           node -v
           pnpm -v
 
+  mint-tauri-updater-key:
+    description: "Mint Tauri updater minisign key → ss vault + gh secrets (ADR-012)"
+    triggers:
+      - type: manual
+    steps:
+      validate:
+        name: Validate tooling
+        run: |
+          command -v ss >/dev/null || {
+            echo "❌ ss not found — install starsystem-cli from celestial-intelligence"
+            exit 1
+          }
+          command -v gh >/dev/null || { echo "❌ install gh"; exit 1; }
+          gh auth status >/dev/null 2>&1 || { echo "❌ gh auth login"; exit 1; }
+          command -v pnpm >/dev/null || { echo "❌ install pnpm"; exit 1; }
+          echo "✅ ss + gh + pnpm ready"
+
+      mint:
+        name: Generate keypair and sync vault + GitHub
+        needs: [validate]
+        run: |
+          pnpm install --frozen-lockfile
+          node scripts/mint-tauri-updater-key.mjs
+
   release-attache-desktop:
-    description: "Tag → dispatch GH macOS Tauri build → publish DMG release (ADR-010)"
+    description: "Tag → dispatch GH macOS Tauri build → publish unsigned DMG release (ADR-010)"
     triggers:
       - type: manual
 
     steps:
       validate:
-        name: Validate inputs
+        name: Validate inputs + environment
         run: |
           if [ -z "${version}" ]; then
             echo "❌ version required — e.g. sf run release-attache-desktop --input version=desktop-v0.1.0"
@@ -48,7 +73,8 @@ pipelines:
             echo "❌ packages/attache-desktop missing"
             exit 1
           fi
-          echo "✅ version=${version}"
+          REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+          echo "✅ version=${version} repo=${REPO}"
 
       tag:
         name: Create and push tag
@@ -65,6 +91,7 @@ pipelines:
         name: Dispatch build-attache-desktop.yml
         needs: [tag]
         run: |
+          REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
           gh workflow run build-attache-desktop.yml \
             --ref "${version}" \
             --field "version=${version}"
@@ -77,36 +104,61 @@ pipelines:
           [ -n "$RUN_ID" ] || { echo "❌ no workflow run found"; exit 1; }
           echo "$RUN_ID" > /tmp/sf-attache-desktop-run-id
           echo "✅ run_id=$RUN_ID"
+          echo "   https://github.com/${REPO}/actions/runs/${RUN_ID}"
 
       wait:
-        name: Wait for macOS build
+        name: Wait for macOS builds
         needs: [dispatch]
         run: |
           RUN_ID=$(cat /tmp/sf-attache-desktop-run-id)
+          REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
           for i in $(seq 1 60); do
             CONCLUSION=$(gh run view "$RUN_ID" --json conclusion -q .conclusion)
             echo "[$i/60] conclusion=$CONCLUSION"
             case "$CONCLUSION" in
               success) exit 0 ;;
               failure|cancelled|timed_out|action_required|startup_failure)
-                echo "❌ build failed: $CONCLUSION"; exit 1 ;;
+                echo "❌ build failed: $CONCLUSION"
+                echo "   https://github.com/${REPO}/actions/runs/${RUN_ID}"
+                exit 1 ;;
             esac
             sleep 30
           done
-          echo "❌ timed out"; exit 1
+          echo "❌ timed out after 30 minutes"; exit 1
 
-      publish:
-        name: Create GitHub release with DMGs
+      download:
+        name: Download DMG artifacts
         needs: [wait]
         run: |
           RUN_ID=$(cat /tmp/sf-attache-desktop-run-id)
           STAGING="dist/desktop-release-staging/${version}"
           mkdir -p "$STAGING"
           gh run download "$RUN_ID" --dir "$STAGING"
-          find "$STAGING" -name "*.dmg" -exec mv {} "$STAGING/" \;
+          find "$STAGING" -type f -exec mv {} "$STAGING/" \; 2>/dev/null || true
           find "$STAGING" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \; 2>/dev/null || true
-          ls -lh "$STAGING"/*.dmg
-          gh release create "${version}" "$STAGING"/*.dmg \
+          ls -lh "$STAGING"
+          [ -f "${STAGING}/attache-desktop-aarch64-${version}.dmg" ] || { echo "❌ missing aarch64 DMG"; exit 1; }
+          [ -f "${STAGING}/attache-desktop-x86_64-${version}.dmg" ] || { echo "❌ missing x86_64 DMG"; exit 1; }
+
+      publish:
+        name: Create GitHub release
+        needs: [download]
+        run: |
+          STAGING="dist/desktop-release-staging/${version}"
+          if [ -f "${STAGING}/latest.json" ]; then
+            ASSETS=("$STAGING"/*)
+          else
+            ASSETS=(
+              "${STAGING}/attache-desktop-aarch64-${version}.dmg"
+              "${STAGING}/attache-desktop-x86_64-${version}.dmg"
+            )
+            if ls "${STAGING}"/attache-updater-*-"${version}".tar.gz >/dev/null 2>&1; then
+              ASSETS+=("${STAGING}"/attache-updater-*-"${version}".tar.gz*)
+            fi
+          fi
+          gh release create "${version}" "${ASSETS[@]}" \
             --title "Attache Desktop ${version}" \
             --generate-notes \
             --prerelease
+          REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+          echo "✅ https://github.com/${REPO}/releases/tag/${version}"

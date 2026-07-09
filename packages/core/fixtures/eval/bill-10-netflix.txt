@@ -1,0 +1,6 @@
+# Eval fixture 10 — Netflix
+Payee: Netflix
+Amount: 52.80
+Due: 2026-10-10
+Cadence: monthly
+Autopay: yes

@@ -1,0 +1,6 @@
+# Eval fixture 4 — Comcast Xfinity
+Payee: Comcast Xfinity
+Amount: 449.23
+Due: 2026-04-04
+Cadence: monthly
+Autopay: yes

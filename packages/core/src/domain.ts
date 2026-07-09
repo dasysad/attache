@@ -129,6 +129,9 @@ export interface PlaidItem {
   vaultCredentialRef: string;
   status: "active" | "error" | "disconnected";
   lastSyncAt: string | null;
+  /** Plaid error code when status=error (slice 3). */
+  errorCode: string | null;
+  errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
 }

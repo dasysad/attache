@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
-import { getAccount, updateManualAccount } from "../account.js";
+import { getAccount } from "../account.js";
+import { getLedger } from "../ledger/sqlite-adapter.js";
+import { InsufficientFundsError } from "../ledger/errors.js";
 import { getTenant, isOnboarded } from "../tenant.js";
 import { proposeTransfer, type TransferProposalInput } from "./transfer.js";
 import type {
@@ -153,7 +155,7 @@ export function approveTransferProposal(
   let status: TransferProposalStatus = "approved";
 
   if (canExecuteOnManualAccounts(db, proposal)) {
-    applyManualTransfer(db, proposal);
+    executeViaLedger(db, proposal);
     status = "executed";
   }
 
@@ -197,21 +199,42 @@ function canExecuteOnManualAccounts(
     const to = getAccount(db, proposal.toAccountId);
     if (!to || to.plaidAccountId || to.syncStatus !== "manual") return false;
   }
-  return from.balanceUsd >= proposal.amountUsd;
+  const ledger = getLedger();
+  const tenantId = proposal.tenantId;
+  try {
+    const available = ledger.getBalanceUsd(db, tenantId, proposal.fromAccountId);
+    return available >= proposal.amountUsd;
+  } catch {
+    return false;
+  }
 }
 
-function applyManualTransfer(
+/**
+ * Post an approved proposal through LedgerPort (ADR-001 P0).
+ * Idempotent on `proposal:{id}` so approval retries never double-post.
+ */
+function executeViaLedger(
   db: Database.Database,
   proposal: TransferProposalRecord,
 ): void {
-  const from = getAccount(db, proposal.fromAccountId)!;
-  updateManualAccount(db, from.id, {
-    balanceUsd: from.balanceUsd - proposal.amountUsd,
-  });
-  if (proposal.toAccountId) {
-    const to = getAccount(db, proposal.toAccountId)!;
-    updateManualAccount(db, to.id, {
-      balanceUsd: to.balanceUsd + proposal.amountUsd,
+  const ledger = getLedger();
+  try {
+    const result = ledger.postTransfer(db, {
+      tenantId: proposal.tenantId,
+      idempotencyKey: `proposal:${proposal.id}`,
+      fromFundingAccountId: proposal.fromAccountId,
+      toFundingAccountId: proposal.toAccountId,
+      amountUsd: proposal.amountUsd,
+      memo: proposal.memo ?? undefined,
+      proposalId: proposal.id,
     });
+    db.prepare(
+      `UPDATE transfer_proposal SET ledger_transfer_id = ? WHERE id = ?`,
+    ).run(result.transfer.id, proposal.id);
+  } catch (e) {
+    if (e instanceof InsufficientFundsError) {
+      throw new Error(e.message);
+    }
+    throw e;
   }
 }

@@ -72,7 +72,7 @@ See ADRs 001–006. Stack:
 | ~~VS-7~~ | ~~Household mesh~~ | **Backlog** [BL-1](./backlog.md) |
 | ~~VS-8~~ | ~~Merge wizard~~ | **Backlog** [BL-2](./backlog.md) |
 | VS-7 | Standalone packaging | Distributable single-device app (ADR-009) |
-| VS-8 | SQLCipher + passphrase | VS-0.1 security gate |
+| VS-8 | SQLCipher + passphrase | ✅ Encryption at rest — keyring, DB, `attache vault`, server/MCP/desktop unlock ([ADR-011](../adr/011-encryption-at-rest.md)) |
 | VS-9 | Premium + SnapTrade | Subscription gate, Connection Portal embed |
 | VS-10 | Android reader | FCM push, read-only list (see spec) |
 | VS-11 | Credential hygiene (deferred) | Event-driven breach/reuse alerts; HITL-assisted change for finance-linked accounts — see [plan](../plans/credential-hygiene-future.md) |

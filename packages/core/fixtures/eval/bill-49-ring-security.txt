@@ -1,0 +1,6 @@
+# Eval fixture 49 — Ring Security
+Payee: Ring Security
+Amount: $82.37
+Due: 2026-01-21
+Cadence: monthly
+Autopay: yes

@@ -1,0 +1,6 @@
+# Eval fixture 25 — Cox Communications
+Payee: Cox Communications
+Amount: $19.04
+Due: 2026-01-25
+Cadence: monthly
+Autopay: yes

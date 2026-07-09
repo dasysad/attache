@@ -12,6 +12,9 @@ import {
   rejectTransferProposal,
   markNotificationRead,
   openDatabase,
+  DatabaseLockedError,
+  databaseLockedHelp,
+  WrongPassphraseError,
   proposeTransfer,
   refreshNotifications,
   type ObligationFilter,
@@ -167,11 +170,18 @@ export function registerAttacheTools(server: McpServer): void {
 }
 
 function withDb<T>(fn: (db: ReturnType<typeof openDatabase>) => T): T {
-  const db = openDatabase();
   try {
-    return fn(db);
-  } finally {
-    db.close();
+    const db = openDatabase();
+    try {
+      return fn(db);
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    if (e instanceof DatabaseLockedError || e instanceof WrongPassphraseError) {
+      throw new Error(databaseLockedHelp());
+    }
+    throw e;
   }
 }
 

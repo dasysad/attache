@@ -20,6 +20,8 @@ and add an entry to the index below.
 | [008](./008-gmail-oauth-local-vault.md) | Gmail OAuth ingest: local vault, CLI-first; WorkOS ≠ Gmail | accepted |
 | [009](./009-standalone-first-mesh-deferred.md) | Standalone app first; mesh deferred to backlog | accepted |
 | [010](./010-release-pipeline-starflow.md) | Starflow + GitHub DMG + Homebrew distribution | accepted |
+| [011](./011-encryption-at-rest.md) | Encryption at rest: SQLCipher cipher + scrypt envelope key | accepted |
+| [012](./012-desktop-signing-and-updates.md) | Desktop signing, notarization, dual-arch, auto-update | accepted |
 
 ## Related
 

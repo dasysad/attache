@@ -1,0 +1,6 @@
+# Eval fixture 3 — Pacific Gas & Electric
+Payee: Pacific Gas & Electric
+Amount: 112.61
+Due: 2026-03-03
+Cadence: once
+Autopay: false

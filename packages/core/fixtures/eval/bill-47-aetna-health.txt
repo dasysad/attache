@@ -1,0 +1,6 @@
+# Eval fixture 47 — Aetna Health
+Payee: Aetna Health
+Amount: 379.21
+Due: 2026-11-19
+Cadence: yearly
+Autopay: false

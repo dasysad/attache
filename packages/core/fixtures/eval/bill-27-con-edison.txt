@@ -1,0 +1,6 @@
+# Eval fixture 27 — Con Edison
+Payee: Con Edison
+Amount: 389.84
+Due: 2026-03-27
+Cadence: once
+Autopay: false

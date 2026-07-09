@@ -1,0 +1,556 @@
+{
+  "version": 1,
+  "description": "Bill extraction eval corpus — 50 structured text bills (PRD OCR strategy)",
+  "cases": [
+    {
+      "id": "bill-01-city-water-department",
+      "file": "bill-01-city-water-department.txt",
+      "expected": {
+        "payee": "City Water Department",
+        "amountUsd": 53.92,
+        "dueDate": "2026-01-01",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-02-metro-electric-cooperative",
+      "file": "bill-02-metro-electric-cooperative.txt",
+      "expected": {
+        "payee": "Metro Electric Cooperative",
+        "amountUsd": 216.99,
+        "dueDate": "2026-02-02",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-03-pacific-gas-electric",
+      "file": "bill-03-pacific-gas-electric.txt",
+      "expected": {
+        "payee": "Pacific Gas & Electric",
+        "amountUsd": 112.61,
+        "dueDate": "2026-03-03",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-04-comcast-xfinity",
+      "file": "bill-04-comcast-xfinity.txt",
+      "expected": {
+        "payee": "Comcast Xfinity",
+        "amountUsd": 449.23,
+        "dueDate": "2026-04-04",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-05-verizon-wireless",
+      "file": "bill-05-verizon-wireless.txt",
+      "expected": {
+        "payee": "Verizon Wireless",
+        "amountUsd": 365.26,
+        "dueDate": "2026-05-05",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-06-at-t-fiber",
+      "file": "bill-06-at-t-fiber.txt",
+      "expected": {
+        "payee": "AT&T Fiber",
+        "amountUsd": 484.86,
+        "dueDate": "2026-06-06",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-07-state-farm-insurance",
+      "file": "bill-07-state-farm-insurance.txt",
+      "expected": {
+        "payee": "State Farm Insurance",
+        "amountUsd": 409.65,
+        "dueDate": "2026-07-07",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-08-geico-auto-insurance",
+      "file": "bill-08-geico-auto-insurance.txt",
+      "expected": {
+        "payee": "Geico Auto Insurance",
+        "amountUsd": 368.42,
+        "dueDate": "2026-08-08",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-09-progressive-home",
+      "file": "bill-09-progressive-home.txt",
+      "expected": {
+        "payee": "Progressive Home",
+        "amountUsd": 333.15,
+        "dueDate": "2026-09-09",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-10-netflix",
+      "file": "bill-10-netflix.txt",
+      "expected": {
+        "payee": "Netflix",
+        "amountUsd": 52.8,
+        "dueDate": "2026-10-10",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-11-spotify-premium",
+      "file": "bill-11-spotify-premium.txt",
+      "expected": {
+        "payee": "Spotify Premium",
+        "amountUsd": 100.41,
+        "dueDate": "2026-11-11",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-12-adobe-creative-cloud",
+      "file": "bill-12-adobe-creative-cloud.txt",
+      "expected": {
+        "payee": "Adobe Creative Cloud",
+        "amountUsd": 477.59,
+        "dueDate": "2026-12-12",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-13-amazon-prime",
+      "file": "bill-13-amazon-prime.txt",
+      "expected": {
+        "payee": "Amazon Prime",
+        "amountUsd": 156.63,
+        "dueDate": "2026-01-13",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-14-apple-icloud",
+      "file": "bill-14-apple-icloud.txt",
+      "expected": {
+        "payee": "Apple iCloud+",
+        "amountUsd": 17.83,
+        "dueDate": "2026-02-14",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-15-google-workspace",
+      "file": "bill-15-google-workspace.txt",
+      "expected": {
+        "payee": "Google Workspace",
+        "amountUsd": 315.1,
+        "dueDate": "2026-03-15",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-16-dropbox-plus",
+      "file": "bill-16-dropbox-plus.txt",
+      "expected": {
+        "payee": "Dropbox Plus",
+        "amountUsd": 451.03,
+        "dueDate": "2026-04-16",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-17-planet-fitness",
+      "file": "bill-17-planet-fitness.txt",
+      "expected": {
+        "payee": "Planet Fitness",
+        "amountUsd": 295.53,
+        "dueDate": "2026-05-17",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-18-la-fitness",
+      "file": "bill-18-la-fitness.txt",
+      "expected": {
+        "payee": "LA Fitness",
+        "amountUsd": 232.07,
+        "dueDate": "2026-06-18",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-19-hbo-max",
+      "file": "bill-19-hbo-max.txt",
+      "expected": {
+        "payee": "HBO Max",
+        "amountUsd": 247.47,
+        "dueDate": "2026-07-19",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-20-disney",
+      "file": "bill-20-disney.txt",
+      "expected": {
+        "payee": "Disney+",
+        "amountUsd": 204.56,
+        "dueDate": "2026-08-20",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-21-hulu-live-tv",
+      "file": "bill-21-hulu-live-tv.txt",
+      "expected": {
+        "payee": "Hulu Live TV",
+        "amountUsd": 283.59,
+        "dueDate": "2026-09-21",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-22-youtube-tv",
+      "file": "bill-22-youtube-tv.txt",
+      "expected": {
+        "payee": "YouTube TV",
+        "amountUsd": 393.84,
+        "dueDate": "2026-10-22",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-23-t-mobile-home-internet",
+      "file": "bill-23-t-mobile-home-internet.txt",
+      "expected": {
+        "payee": "T-Mobile Home Internet",
+        "amountUsd": 103.27,
+        "dueDate": "2026-11-23",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-24-spectrum-cable",
+      "file": "bill-24-spectrum-cable.txt",
+      "expected": {
+        "payee": "Spectrum Cable",
+        "amountUsd": 402.2,
+        "dueDate": "2026-12-24",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-25-cox-communications",
+      "file": "bill-25-cox-communications.txt",
+      "expected": {
+        "payee": "Cox Communications",
+        "amountUsd": 19.04,
+        "dueDate": "2026-01-25",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-26-national-grid",
+      "file": "bill-26-national-grid.txt",
+      "expected": {
+        "payee": "National Grid",
+        "amountUsd": 153.07,
+        "dueDate": "2026-02-26",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-27-con-edison",
+      "file": "bill-27-con-edison.txt",
+      "expected": {
+        "payee": "Con Edison",
+        "amountUsd": 389.84,
+        "dueDate": "2026-03-27",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-28-duke-energy",
+      "file": "bill-28-duke-energy.txt",
+      "expected": {
+        "payee": "Duke Energy",
+        "amountUsd": 458.06,
+        "dueDate": "2026-04-28",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-29-florida-power-light",
+      "file": "bill-29-florida-power-light.txt",
+      "expected": {
+        "payee": "Florida Power & Light",
+        "amountUsd": 84.19,
+        "dueDate": "2026-05-01",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-30-austin-energy",
+      "file": "bill-30-austin-energy.txt",
+      "expected": {
+        "payee": "Austin Energy",
+        "amountUsd": 283.97,
+        "dueDate": "2026-06-02",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-31-seattle-public-utilities",
+      "file": "bill-31-seattle-public-utilities.txt",
+      "expected": {
+        "payee": "Seattle Public Utilities",
+        "amountUsd": 204.87,
+        "dueDate": "2026-07-03",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-32-chicago-water",
+      "file": "bill-32-chicago-water.txt",
+      "expected": {
+        "payee": "Chicago Water",
+        "amountUsd": 266.75,
+        "dueDate": "2026-08-04",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-33-denver-trash-recycling",
+      "file": "bill-33-denver-trash-recycling.txt",
+      "expected": {
+        "payee": "Denver Trash & Recycling",
+        "amountUsd": 328.75,
+        "dueDate": "2026-09-05",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-34-hoa-maple-ridge",
+      "file": "bill-34-hoa-maple-ridge.txt",
+      "expected": {
+        "payee": "HOA — Maple Ridge",
+        "amountUsd": 419.77,
+        "dueDate": "2026-10-06",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-35-rent-oak-street-apartments",
+      "file": "bill-35-rent-oak-street-apartments.txt",
+      "expected": {
+        "payee": "Rent — Oak Street Apartments",
+        "amountUsd": 387.25,
+        "dueDate": "2026-11-07",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-36-student-loan-servicing",
+      "file": "bill-36-student-loan-servicing.txt",
+      "expected": {
+        "payee": "Student Loan Servicing",
+        "amountUsd": 93.74,
+        "dueDate": "2026-12-08",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-37-chase-auto-loan",
+      "file": "bill-37-chase-auto-loan.txt",
+      "expected": {
+        "payee": "Chase Auto Loan",
+        "amountUsd": 437.75,
+        "dueDate": "2026-01-09",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-38-toyota-financial",
+      "file": "bill-38-toyota-financial.txt",
+      "expected": {
+        "payee": "Toyota Financial",
+        "amountUsd": 119.27,
+        "dueDate": "2026-02-10",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-39-american-express",
+      "file": "bill-39-american-express.txt",
+      "expected": {
+        "payee": "American Express",
+        "amountUsd": 319.03,
+        "dueDate": "2026-03-11",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-40-chase-sapphire",
+      "file": "bill-40-chase-sapphire.txt",
+      "expected": {
+        "payee": "Chase Sapphire",
+        "amountUsd": 121.26,
+        "dueDate": "2026-04-12",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-41-capital-one-venture",
+      "file": "bill-41-capital-one-venture.txt",
+      "expected": {
+        "payee": "Capital One Venture",
+        "amountUsd": 230.94,
+        "dueDate": "2026-05-13",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-42-discover-card",
+      "file": "bill-42-discover-card.txt",
+      "expected": {
+        "payee": "Discover Card",
+        "amountUsd": 119.56,
+        "dueDate": "2026-06-14",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-43-wells-fargo-mortgage",
+      "file": "bill-43-wells-fargo-mortgage.txt",
+      "expected": {
+        "payee": "Wells Fargo Mortgage",
+        "amountUsd": 17.34,
+        "dueDate": "2026-07-15",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-44-rocket-mortgage",
+      "file": "bill-44-rocket-mortgage.txt",
+      "expected": {
+        "payee": "Rocket Mortgage",
+        "amountUsd": 108.57,
+        "dueDate": "2026-08-16",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-45-kaiser-permanente",
+      "file": "bill-45-kaiser-permanente.txt",
+      "expected": {
+        "payee": "Kaiser Permanente",
+        "amountUsd": 272.55,
+        "dueDate": "2026-09-17",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-46-blue-cross-blue-shield",
+      "file": "bill-46-blue-cross-blue-shield.txt",
+      "expected": {
+        "payee": "Blue Cross Blue Shield",
+        "amountUsd": 20.23,
+        "dueDate": "2026-10-18",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-47-aetna-health",
+      "file": "bill-47-aetna-health.txt",
+      "expected": {
+        "payee": "Aetna Health",
+        "amountUsd": 379.21,
+        "dueDate": "2026-11-19",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-48-unitedhealthcare",
+      "file": "bill-48-unitedhealthcare.txt",
+      "expected": {
+        "payee": "UnitedHealthcare",
+        "amountUsd": 338.13,
+        "dueDate": "2026-12-20",
+        "cadence": "once",
+        "autopay": false
+      }
+    },
+    {
+      "id": "bill-49-ring-security",
+      "file": "bill-49-ring-security.txt",
+      "expected": {
+        "payee": "Ring Security",
+        "amountUsd": 82.37,
+        "dueDate": "2026-01-21",
+        "cadence": "monthly",
+        "autopay": true
+      }
+    },
+    {
+      "id": "bill-50-adt-home-security",
+      "file": "bill-50-adt-home-security.txt",
+      "expected": {
+        "payee": "ADT Home Security",
+        "amountUsd": 345.23,
+        "dueDate": "2026-02-22",
+        "cadence": "yearly",
+        "autopay": false
+      }
+    }
+  ]
+}

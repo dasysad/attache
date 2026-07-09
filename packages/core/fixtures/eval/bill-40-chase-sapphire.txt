@@ -1,0 +1,6 @@
+# Eval fixture 40 — Chase Sapphire
+Payee: Chase Sapphire
+Amount: 121.26
+Due: 2026-04-12
+Cadence: monthly
+Autopay: yes

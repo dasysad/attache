@@ -27,7 +27,7 @@ describe("VS-4.2 IMAP ingest", () => {
     vaultDir = mkdtempSync(join(tmpdir(), "attache-imap-vault-"));
     const db = openDatabase(dataDir);
     createTenant(db, { householdName: "T", holderDisplayName: "A" });
-    const vault = new LocalVaultPort(vaultDir);
+    const vault = new LocalVaultPort(vaultDir, null);
     setVaultForTests(vault);
     return { db, vault };
   }

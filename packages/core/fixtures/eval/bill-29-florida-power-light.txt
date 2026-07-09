@@ -1,0 +1,6 @@
+# Eval fixture 29 — Florida Power & Light
+Vendor: Florida Power & Light
+Amount: $84.19
+Due: 2026-05-01
+Cadence: yearly
+Autopay: false

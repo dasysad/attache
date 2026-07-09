@@ -1,0 +1,6 @@
+# Eval fixture 44 — Rocket Mortgage
+Payee: Rocket Mortgage
+Amount: 108.57
+Due: 2026-08-16
+Cadence: yearly
+Autopay: false

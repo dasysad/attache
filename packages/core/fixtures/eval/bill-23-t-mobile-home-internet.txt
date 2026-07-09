@@ -1,0 +1,6 @@
+# Eval fixture 23 — T-Mobile Home Internet
+Payee: T-Mobile Home Internet
+Amount: 103.27
+Due: 2026-11-23
+Cadence: yearly
+Autopay: false

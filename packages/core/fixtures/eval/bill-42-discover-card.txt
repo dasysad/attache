@@ -1,0 +1,6 @@
+# Eval fixture 42 — Discover Card
+Payee: Discover Card
+Amount: 119.56
+Due: 2026-06-14
+Cadence: once
+Autopay: false
