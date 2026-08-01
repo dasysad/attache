@@ -14,7 +14,7 @@ Release via **Starflow** → **GitHub Actions** (macOS DMG) → **Homebrew tap**
 | [ADR-010](docs/adr/010-release-pipeline-starflow.md) | Decision |
 | [homebrew-tap-template.md](docs/specs/homebrew-tap-template.md) | Tap repo starter |
 
-Tap: [celestial-intelligence-agency/homebrew-tap](https://github.com/celestial-intelligence-agency/homebrew-tap) — set `HOMEBREW_TAP_TOKEN` on this repo for auto-bump PRs.
+Tap: [celestial-intelligence-agency/homebrew-tap](https://github.com/celestial-intelligence-agency/homebrew-tap) — set `HOMEBREW_TAP_TOKEN` on this repo for auto-bumps to tap `main`.
 
 ```bash
 # Release desktop DMG:
