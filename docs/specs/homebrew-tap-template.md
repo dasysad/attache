@@ -9,7 +9,8 @@ brew install --cask attache       # Desktop (Cask, after first DMG release)
 ```
 
 Auto-bump: `.github/workflows/bump-homebrew-tap.yml` in attache repo on `desktop-v*` release.
-Requires `HOMEBREW_TAP_TOKEN` secret with contents + PR write on `dasysad/homebrew-tap`.
+Requires `HOMEBREW_TAP_TOKEN` secret with contents write on
+`celestial-intelligence-agency/homebrew-tap`. Bumps push straight to tap `main`.
 
 See the tap repo for `Formula/attache-cli.rb` and `Casks/attache.rb`.
 
