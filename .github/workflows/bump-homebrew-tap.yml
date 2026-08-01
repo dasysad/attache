@@ -3,7 +3,8 @@
 # Dual-arch Cask: arm64 + x86_64 DMGs from the same GitHub release.
 #
 # Required secret:
-#   HOMEBREW_TAP_TOKEN — contents + PR write on celestial-intelligence-agency/homebrew-tap
+#   HOMEBREW_TAP_TOKEN — contents write on celestial-intelligence-agency/homebrew-tap
+# Solo project: bumps push straight to tap main (no PR).
 
 name: Bump Homebrew tap
 
@@ -66,28 +67,21 @@ jobs:
           set -euo pipefail
           ruby "${GITHUB_WORKSPACE}/attache-src/packages/attache-desktop/scripts/bump-cask-dual-arch.rb"
           if git diff --quiet Casks/attache.rb; then
-            echo "Cask already at ${VERSION} — no PR needed"
+            echo "Cask already at ${VERSION} — nothing to push"
             echo "noop=true" >> "$GITHUB_ENV"
           fi
 
-      - name: Open PR
+      - name: Push Cask bump to tap main
         if: env.noop != 'true'
         working-directory: tap
         env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ steps.meta.outputs.version }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
           set -euo pipefail
-          BRANCH="bump/attache-${VERSION}"
           git config user.name "attache-bump-bot"
           git config user.email "bump-bot@users.noreply.github.com"
-          git checkout -b "$BRANCH"
           git add Casks/attache.rb
           git commit -m "attache ${VERSION} (arm64 + x86_64)"
-          git push -u origin "$BRANCH"
-          gh pr create \
-            --title "attache ${VERSION}" \
-            --body "Automated dual-arch bump for ${TAG}." \
-            --base main \
-            --head "$BRANCH"
+          git push origin HEAD:main
+          echo "✅ Pushed attache ${VERSION} Cask bump for ${TAG} → homebrew-tap main"
