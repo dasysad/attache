@@ -1,5 +1,8 @@
 /**
- * att-wizard-steps — onboarding step indicator (VS-2).
+ * att-wizard-steps — onboarding step indicator (VS-2 / ADR-015 P3).
+ * Default labels: household → find mail → connect → account → bills.
+ * Why: discover and connect are skippable but still appear in the map so
+ * users see they can skip, not that the product requires Gmail.
  */
 import { LitElement, css, html } from "lit";
 
@@ -7,10 +10,12 @@ export class AttWizardSteps extends LitElement {
   static properties = {
     current: { type: Number },
     total: { type: Number },
+    labels: { type: String },
   };
 
   current = 1;
-  total = 3;
+  total = 5;
+  labels = "Household,Find mail,Connect,Account,Bills";
 
   static styles = css`
     :host {
@@ -46,10 +51,14 @@ export class AttWizardSteps extends LitElement {
   `;
 
   render() {
-    const labels = ["Household", "Account", "Bills"];
+    const items = this.labels
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const total = this.total > 0 ? this.total : items.length;
     return html`
       <ol part="steps">
-        ${labels.slice(0, this.total).map(
+        ${items.slice(0, total).map(
           (label, i) => html`
             <li class="${i + 1 === this.current ? "active" : i + 1 < this.current ? "done" : ""}">
               ${label}

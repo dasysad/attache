@@ -20,7 +20,7 @@ import { minorToUsd, usdToMinor } from "./types.js";
  * WHAT: double-entry journal tables in the same `attache.db` as domain data.
  * HOW: each transfer creates a header + balanced signed entries; asset balances
  *      are SUM(amount_minor); funding_account.balance_usd is synced after post.
- * WHY: dogfood-ready audit trail without running TigerBeetle yet.
+ * WHY: dogfood-ready audit trail; TigerBeetle is opt-in (BL-11).
  */
 
 interface AccountRow {
@@ -136,11 +136,11 @@ export class SqliteLedgerAdapter implements LedgerPort {
     return this.getAccountRow(db, tenantId, id);
   }
 
-  ensureFundingAccount(
+  async ensureFundingAccount(
     db: Database.Database,
     tenantId: string,
     fundingAccountId: string,
-  ): string {
+  ): Promise<string> {
     const funding = getAccount(db, fundingAccountId);
     if (!funding) throw new Error("funding account not found");
 
@@ -170,7 +170,7 @@ export class SqliteLedgerAdapter implements LedgerPort {
     balanceUsd: number,
   ): void {
     const idempotencyKey = `opening:${asset.funding_account_id}`;
-    if (this.lookupTransfer(db, tenantId, idempotencyKey)) return;
+    if (this.lookupTransferSync(db, tenantId, idempotencyKey)) return;
 
     const amountMinor = usdToMinor(balanceUsd);
     if (amountMinor === 0) return;
@@ -214,25 +214,24 @@ export class SqliteLedgerAdapter implements LedgerPort {
     ).run(randomUUID(), transferId, accountId, amountMinor, createdAt);
   }
 
-  postTransfer(db: Database.Database, input: PostTransferInput): PostTransferResult {
+  async postTransfer(db: Database.Database, input: PostTransferInput): Promise<PostTransferResult> {
     const amountMinor = usdToMinor(input.amountUsd);
     if (amountMinor <= 0) throw new Error("amount must be positive");
 
-    const existing = this.lookupTransfer(db, input.tenantId, input.idempotencyKey);
+    const existing = this.lookupTransferSync(db, input.tenantId, input.idempotencyKey);
     if (existing) {
       return { transfer: existing, created: false };
     }
 
-    const fromLedgerId = this.ensureFundingAccount(
+    const fromLedgerId = await this.ensureFundingAccount(
       db,
       input.tenantId,
       input.fromFundingAccountId,
     );
-    const fromRow = this.getAccountRow(db, input.tenantId, fromLedgerId);
 
     let toLedgerId: string;
     if (input.toFundingAccountId) {
-      toLedgerId = this.ensureFundingAccount(
+      toLedgerId = await this.ensureFundingAccount(
         db,
         input.tenantId,
         input.toFundingAccountId,
@@ -285,26 +284,26 @@ export class SqliteLedgerAdapter implements LedgerPort {
       syncFundingBalanceProjection(db, input.tenantId, input.toFundingAccountId);
     }
 
-    const transfer = this.lookupTransfer(db, input.tenantId, input.idempotencyKey)!;
+    const transfer = this.lookupTransferSync(db, input.tenantId, input.idempotencyKey)!;
     return { transfer, created: true };
   }
 
-  getBalanceUsd(
+  async getBalanceUsd(
     db: Database.Database,
     tenantId: string,
     fundingAccountId: string,
-  ): number {
-    const ledgerId = this.ensureFundingAccount(db, tenantId, fundingAccountId);
+  ): Promise<number> {
+    const ledgerId = await this.ensureFundingAccount(db, tenantId, fundingAccountId);
     return minorToUsd(sumAccountMinor(db, ledgerId));
   }
 
-  getAccountHistory(
+  async getAccountHistory(
     db: Database.Database,
     tenantId: string,
     fundingAccountId: string,
     options: { limit?: number } = {},
-  ): LedgerHistoryEntry[] {
-    const ledgerId = this.ensureFundingAccount(db, tenantId, fundingAccountId);
+  ): Promise<LedgerHistoryEntry[]> {
+    const ledgerId = await this.ensureFundingAccount(db, tenantId, fundingAccountId);
     const limit = options.limit ?? 50;
     const rows = db
       .prepare(
@@ -332,7 +331,15 @@ export class SqliteLedgerAdapter implements LedgerPort {
     }));
   }
 
-  lookupTransfer(
+  async lookupTransfer(
+    db: Database.Database,
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<LedgerTransfer | null> {
+    return this.lookupTransferSync(db, tenantId, idempotencyKey);
+  }
+
+  private lookupTransferSync(
     db: Database.Database,
     tenantId: string,
     idempotencyKey: string,
@@ -344,16 +351,4 @@ export class SqliteLedgerAdapter implements LedgerPort {
       .get(tenantId, idempotencyKey) as TransferRow | undefined;
     return row ? mapTransfer(row) : null;
   }
-}
-
-/** Default production adapter. */
-let defaultLedger: LedgerPort | null = null;
-
-export function getLedger(): LedgerPort {
-  if (!defaultLedger) defaultLedger = new SqliteLedgerAdapter();
-  return defaultLedger;
-}
-
-export function setLedgerForTests(ledger: LedgerPort | null): void {
-  defaultLedger = ledger;
 }

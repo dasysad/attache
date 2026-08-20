@@ -1,6 +1,6 @@
 # Spec: Android notification reader (v1)
 
-- **Status:** draft
+- **Status:** P0 API shipped (2026-08-16); Kotlin companion still draft
 - **Date:** 2026-06-22
 - **Purpose:** Minimal mobile channel for household alerts without full app scope
 

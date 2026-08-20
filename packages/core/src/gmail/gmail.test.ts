@@ -56,8 +56,8 @@ describe("VS-4.3 Gmail OAuth ingest", () => {
     const { db, vault } = setup();
     connectSandboxGmail(db, vault);
     const result = await pollGmailIngest(db, vault, createDocumentAdapter(), new FakeGmailAdapter());
-    expect(result.billsCreated).toBe(1);
-    expect(listPendingBillReviews(db)).toHaveLength(1);
+    expect(result.billsCreated).toBe(5);
+    expect(listPendingBillReviews(db)).toHaveLength(3);
     db.close();
   });
 });

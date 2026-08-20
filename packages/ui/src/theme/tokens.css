@@ -69,7 +69,9 @@
   --att-radius-md: 8px;
   --att-radius-lg: 12px;
   --att-border-thin: 1px;
-  --att-layout-max: 960px;
+  --att-border-medium: 2px;
+  --att-border-strong: 3px;
+  --att-layout-max: 1120px;
   --att-layout-gutter: var(--att-space-6);
 
   /* Elevation — subtle; finance UI favors clarity over glow */
@@ -80,6 +82,33 @@
   /* Motion */
   --att-motion-fast: 120ms ease;
   --att-motion-normal: 200ms ease;
+}
+
+/**
+ * Daylight — light color scheme for Lens theme switcher (`data-theme="daylight"`).
+ * Same type/space/radius; inverted surfaces. Household dark remains :root base.
+ */
+:root[data-theme="daylight"] {
+  --att-color-bg: #f4f6f8;
+  --att-color-surface: #ffffff;
+  --att-color-surface-raised: #eef1f4;
+  --att-color-surface-overlay: #e4e9ee;
+  --att-color-primary: #2a7a6e;
+  --att-color-primary-hover: #348f81;
+  --att-color-primary-muted: #c5e4de;
+  --att-color-on-primary: #ffffff;
+  --att-color-text: #1a222c;
+  --att-color-text-muted: #5c6b7a;
+  --att-color-text-subtle: #8b9aab;
+  --att-color-outline: #c5d0da;
+  --att-color-success: #2a7a52;
+  --att-color-warning: #9a7a12;
+  --att-color-error: #c44545;
+  --att-color-info: #2f6fad;
+  --att-color-action: #5c4ed4;
+  --att-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --att-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --att-shadow-focus: 0 0 0 3px rgba(42, 122, 110, 0.35);
 }
 
 /* Lens / story aliases — map to att-* for helper compatibility */

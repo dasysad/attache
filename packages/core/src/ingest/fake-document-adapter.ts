@@ -19,7 +19,7 @@ export class FakeDocumentAdapter implements DocumentExtractionPort {
   async extract(input: DocumentExtractionInput): Promise<BillExtraction> {
     const text = input.bytes.toString("utf8");
     if (input.filename.toLowerCase().endsWith(".txt")) {
-      const parsed = parseTextBill(text);
+      const parsed = parseTextDocument(text) ?? parseTextBill(text);
       if (parsed) return parsed;
     }
     return sandboxPgeFixture(input.filename);
@@ -28,27 +28,10 @@ export class FakeDocumentAdapter implements DocumentExtractionPort {
 
 /** Parse simple key-value bill fixtures for agent/CLI dogfood. */
 export function parseTextBill(text: string): BillExtraction | null {
-  const lines = text.split(/\r?\n/);
-  let payee: string | undefined;
-  let amountUsd: number | undefined;
-  let dueDate: string | undefined;
-  let cadence: BillExtraction["cadence"] = "once";
-  let autopay = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const kv = trimmed.match(/^([^:]+):\s*(.+)$/);
-    if (!kv) continue;
-    const key = kv[1]!.trim().toLowerCase();
-    const val = kv[2]!.trim();
-    if (key === "payee" || key === "vendor") payee = val;
-    if (key === "amount") amountUsd = parseAmount(val);
-    if (key === "due" || key === "due date") dueDate = normalizeDate(val);
-    if (key === "cadence") cadence = val as BillExtraction["cadence"];
-    if (key === "autopay") autopay = val === "true" || val === "yes" || val === "1";
-  }
-
+  const fields = parseKvFields(text);
+  const payee = fields.payee ?? fields.vendor;
+  const amountUsd = fields.amount;
+  const dueDate = fields.due;
   if (!payee || amountUsd === undefined || !dueDate) return null;
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return null;
@@ -57,12 +40,89 @@ export function parseTextBill(text: string): BillExtraction | null {
     payee,
     amountUsd,
     dueDate,
-    cadence,
-    autopay,
+    cadence: fields.cadence,
+    autopay: fields.autopay,
     classifier: "bill",
     confidence: 0.92,
     rawText: text.slice(0, 4000),
   };
+}
+
+/**
+ * Statement / hint fixtures — amount and due date are optional.
+ * Why: ADR-015 — a statement without extractable amount is a connect hint, not a bill.
+ */
+export function parseTextDocument(text: string): BillExtraction | null {
+  const fields = parseKvFields(text);
+  const classifier = fields.classifier;
+  const institution = fields.institution;
+  const isStatement =
+    classifier === "statement" ||
+    (Boolean(institution) && fields.amount === undefined);
+
+  if (!isStatement) return null;
+
+  const payee = fields.payee ?? fields.vendor ?? institution ?? "Unknown institution";
+  const rail = fields.rail ?? inferRail(`${institution ?? ""} ${text}`);
+
+  return {
+    payee,
+    amountUsd: fields.amount ?? 0,
+    dueDate: fields.due ?? "",
+    cadence: fields.cadence,
+    autopay: fields.autopay,
+    classifier: "statement",
+    confidence: 0.8,
+    rawText: text.slice(0, 4000),
+    institutionHint: institution ?? payee,
+    rail,
+  };
+}
+
+interface ParsedKv {
+  payee?: string;
+  vendor?: string;
+  amount?: number;
+  due?: string;
+  cadence: BillExtraction["cadence"];
+  autopay: boolean;
+  classifier?: BillExtraction["classifier"];
+  institution?: string;
+  rail?: "plaid" | "snaptrade";
+}
+
+function parseKvFields(text: string): ParsedKv {
+  const out: ParsedKv = { cadence: "once", autopay: false };
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const kv = trimmed.match(/^([^:]+):\s*(.+)$/);
+    if (!kv) continue;
+    const key = kv[1]!.trim().toLowerCase();
+    const val = kv[2]!.trim();
+    if (key === "payee") out.payee = val;
+    if (key === "vendor") out.vendor = val;
+    if (key === "amount") out.amount = parseAmount(val);
+    if (key === "due" || key === "due date") out.due = normalizeDate(val);
+    if (key === "cadence" && (val === "once" || val === "monthly" || val === "yearly")) {
+      out.cadence = val;
+    }
+    if (key === "autopay") out.autopay = val === "true" || val === "yes" || val === "1";
+    if (key === "classifier" && (val === "bill" || val === "statement" || val === "notice" || val === "other")) {
+      out.classifier = val;
+    }
+    if (key === "institution") out.institution = val;
+    if (key === "rail" && (val === "plaid" || val === "snaptrade")) out.rail = val;
+  }
+  return out;
+}
+
+function inferRail(haystack: string): "plaid" | "snaptrade" {
+  const h = haystack.toLowerCase();
+  if (/\b(brokerage|fidelity|vanguard|schwab|robinhood|snaptrade)\b/.test(h)) {
+    return "snaptrade";
+  }
+  return "plaid";
 }
 
 function sandboxPgeFixture(filename: string): BillExtraction {

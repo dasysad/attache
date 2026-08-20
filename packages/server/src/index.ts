@@ -45,6 +45,7 @@ import {
   type InboundEmailWebhookPayload,
   isOnboarded,
   listAccounts,
+  listActivity,
   listObligations,
   listPendingBillReviews,
   listImapAccounts,
@@ -57,6 +58,9 @@ import {
   savePushSubscription,
   markObligationPaid,
   markSetupComplete,
+  markSetupDiscoverDone,
+  markSetupConnectHintsDone,
+  maybeMarkSetupComplete,
   obligationDisplayStatus,
   openDatabase,
   hasKeyfile,
@@ -67,27 +71,66 @@ import {
   pollGmailIngest,
   PRICING_SCENARIOS,
   setupWizardPath,
+  setupAllowedAppPaths,
   syncAllPlaidItems,
+  unlinkPlaidItem,
+  unlinkGmailAccount,
+  unlinkImapAccount,
+  unlinkSnapTradeConnection,
+  connectSandboxSnapTrade,
+  connectLiveSnapTrade,
+  syncAllSnapTradeConnections,
+  listSnapTradeConnections,
+  listSnapTradePositions,
+  countSnapTradeLinkedAccounts,
+  createSnapTradeAdapter,
+  isSnapTradeConfigured,
+  collectAttention,
+  discoverMailCandidates,
+  DiscoverError,
+  listDiscoverCandidates,
+  listUnsatisfiedConnectHints,
+  transferApprovalMessage,
   updateManualAccount,
   updateObligation,
+  computeNetWorth,
+  computeCashflowTrend,
+  parseFundingKind,
+  listHouseholdAssets,
+  confirmAssetHint,
+  registerPushDevice,
+  listPushDevices,
+  unlinkPushDevice,
+  ingestMailgunWebhook,
+  MailgunWebhookError,
+  isMailgunIngressConfigured,
+  fcmStatus,
 } from "@attache/core";
 import {
   accountsPage,
+  activityPage,
   appHomePage,
   billReviewPage,
+  cashflowPage,
+  connectionsPage,
   costEstimatorForm,
   ingestPage,
   layout,
   notificationsPage,
+  netWorthPage,
   obligationsPage,
   onboardAccountPage,
+  onboardConnectPage,
+  onboardDiscoverPage,
   onboardObligationPage,
   onboardPage,
   parseCostForm,
   plaidPage,
+  snaptradePage,
   pricingPage,
   renderCostReceipt,
   setNavUnreadCount,
+  setNavCurrentPath,
   setTransferPendingCount,
   transfersPage,
   vaultUnlockPage,
@@ -97,6 +140,11 @@ import { resolvePublicRoot } from "./paths.js";
 import { getVapidPublicKey, isPushConfigured } from "./push.js";
 
 const app = new Hono();
+
+app.use("*", async (c, next) => {
+  setNavCurrentPath(c.req.path);
+  await next();
+});
 
 const publicRoot = resolvePublicRoot();
 app.use("/static/*", serveStatic({ root: publicRoot }));
@@ -164,6 +212,23 @@ function withDb<T>(fn: (db: ReturnType<typeof openDatabase>) => T): T {
   }
 }
 
+async function withDbAsync<T>(
+  fn: (db: ReturnType<typeof openDatabase>) => Promise<T>,
+): Promise<T> {
+  const db = openDatabase();
+  try {
+    if (isOnboarded(db)) {
+      syncNotificationsSync(db);
+    } else {
+      setNavUnreadCount(0);
+      setTransferPendingCount(0);
+    }
+    return await fn(db);
+  } finally {
+    db.close();
+  }
+}
+
 function obligationsWithStatus(db: ReturnType<typeof openDatabase>) {
   return listObligations(db).map((o) => ({
     ...o,
@@ -171,26 +236,49 @@ function obligationsWithStatus(db: ReturnType<typeof openDatabase>) {
   }));
 }
 
-/** Redirect incomplete setup wizard unless path is allowed. */
+/** Redirect incomplete setup wizard unless path is allowed during setup. */
 function maybeSetupRedirect(
   db: ReturnType<typeof openDatabase>,
-  allowPaths: string[],
   currentPath: string,
+  extraAllow: string[] = [],
 ): Response | null {
   const next = setupWizardPath(db);
-  if (next && !allowPaths.includes(currentPath)) {
-    return new Response(null, {
-      status: 302,
-      headers: { Location: next },
-    });
-  }
-  return null;
+  if (!next) return null;
+  const allowed = new Set([...setupAllowedAppPaths(db), ...extraAllow]);
+  if (allowed.has(currentPath)) return null;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: next },
+  });
+}
+
+/**
+ * Next wizard URL after a mutation. Marks setup complete only when the map is done.
+ * Why: keep setupWizardPath pure — persist happens here, after skip/create.
+ */
+function wizardNextLocation(db: ReturnType<typeof openDatabase>): string {
+  maybeMarkSetupComplete(db);
+  return setupWizardPath(db) ?? "/";
+}
+
+function onboardDiscoverHtml(
+  db: ReturnType<typeof openDatabase>,
+  opts?: { message?: string; error?: string },
+): string {
+  return onboardDiscoverPage({
+    candidates: listDiscoverCandidates(db),
+    mailConnected:
+      listGmailAccounts(db).length > 0 || listImapAccounts(db).length > 0,
+    gmailOAuth: isGoogleOAuthConfigured(),
+    message: opts?.message,
+    error: opts?.error,
+  });
 }
 
 app.get("/", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, [], "/");
+    const redirect = maybeSetupRedirect(db, "/");
     if (redirect) return redirect;
     const tenant = getTenant(db)!;
     const accounts = listAccounts(db);
@@ -208,6 +296,7 @@ app.get("/", (c) =>
         accounts,
         forecast.upcoming,
         txs,
+        collectAttention(db),
       ),
     );
   }),
@@ -233,7 +322,7 @@ app.post("/onboard", async (c) => {
   return withDb((db) => {
     try {
       createTenant(db, { householdName, holderDisplayName });
-      return c.redirect("/onboard/account");
+      return c.redirect(wizardNextLocation(db));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not create household";
       return c.html(onboardPage(msg), 400);
@@ -241,9 +330,150 @@ app.post("/onboard", async (c) => {
   });
 });
 
+app.get("/onboard/discover", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const next = setupWizardPath(db);
+    if (next !== "/onboard/discover") return c.redirect(next ?? "/");
+    return c.html(
+      onboardDiscoverHtml(db, {
+        message: c.req.query("msg") ? String(c.req.query("msg")) : undefined,
+        error: c.req.query("error") ? String(c.req.query("error")) : undefined,
+      }),
+    );
+  }),
+);
+
+/** Skip and Continue both mark the step done — Gmail is never required. */
+app.get("/onboard/discover/skip", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    markSetupDiscoverDone(db);
+    return c.redirect(wizardNextLocation(db));
+  }),
+);
+
+app.get("/onboard/discover/continue", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    markSetupDiscoverDone(db);
+    return c.redirect(wizardNextLocation(db));
+  }),
+);
+
+/**
+ * POST runs discover (poll). GET never polls — listDiscoverCandidates only.
+ * Stay on the wizard so bills can be confirmed before connect hints.
+ */
+app.post("/onboard/discover/run", async (c) =>
+  withDbAsync(async (db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const result = await discoverMailCandidates(
+        db,
+        getVault(),
+        createDocumentAdapter(),
+      );
+      return c.redirect(
+        `/onboard/discover?msg=${encodeURIComponent(result.message)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "discover failed";
+      return c.redirect(`/onboard/discover?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.post("/onboard/discover-sandbox", async (c) =>
+  withDbAsync(async (db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const result = await discoverMailCandidates(
+        db,
+        getVault(),
+        createDocumentAdapter(),
+        { sandbox: true },
+      );
+      return c.redirect(
+        `/onboard/discover?msg=${encodeURIComponent(result.message)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "discover failed";
+      return c.redirect(`/onboard/discover?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.post("/onboard/discover/confirm/:id", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const eventId = c.req.param("id");
+    try {
+      const obligation = confirmBillIngest(db, eventId);
+      return c.redirect(
+        `/onboard/discover?msg=${encodeURIComponent(`Confirmed ${obligation.payee}`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "confirm failed";
+      return c.redirect(`/onboard/discover?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.post("/onboard/discover/asset/:id", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const eventId = c.req.param("id");
+    try {
+      const asset = confirmAssetHint(db, eventId);
+      return c.redirect(
+        `/onboard/discover?msg=${encodeURIComponent(`Noted ${asset.kind}: ${asset.label}`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "asset confirm failed";
+      return c.redirect(`/onboard/discover?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.get("/onboard/connect", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const next = setupWizardPath(db);
+    if (next !== "/onboard/connect") return c.redirect(next ?? "/");
+    return c.html(
+      onboardConnectPage({
+        hints: listUnsatisfiedConnectHints(db),
+        livePlaid: isPlaidConfigured(),
+        liveSnaptrade: isSnapTradeConfigured(),
+        message: c.req.query("msg") ? String(c.req.query("msg")) : undefined,
+        error: c.req.query("error") ? String(c.req.query("error")) : undefined,
+      }),
+    );
+  }),
+);
+
+app.get("/onboard/connect/skip", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    markSetupConnectHintsDone(db);
+    return c.redirect(wizardNextLocation(db));
+  }),
+);
+
+app.get("/onboard/connect/continue", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    markSetupConnectHintsDone(db);
+    return c.redirect(wizardNextLocation(db));
+  }),
+);
+
 app.get("/onboard/account", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
+    const next = setupWizardPath(db);
+    if (next !== "/onboard/account") return c.redirect(next ?? "/");
     return c.html(onboardAccountPage());
   }),
 );
@@ -263,7 +493,7 @@ app.post("/onboard/account", async (c) => {
         mask: mask || undefined,
         balanceUsd,
       });
-      return c.redirect("/onboard/obligation");
+      return c.redirect(wizardNextLocation(db));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not add account";
       return c.html(onboardAccountPage(msg), 400);
@@ -274,7 +504,8 @@ app.post("/onboard/account", async (c) => {
 app.get("/onboard/obligation", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    if (listAccounts(db).length === 0) return c.redirect("/onboard/account");
+    const next = setupWizardPath(db);
+    if (next !== "/onboard/obligation") return c.redirect(next ?? "/");
     return c.html(onboardObligationPage());
   }),
 );
@@ -318,7 +549,7 @@ app.post("/onboard/obligation", async (c) => {
 app.get("/app/accounts", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, ["/onboard/account"], "/app/accounts");
+    const redirect = maybeSetupRedirect(db, "/app/accounts");
     if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
@@ -328,6 +559,100 @@ app.get("/app/accounts", (c) =>
         msg ? String(msg) : undefined,
         err ? String(err) : undefined,
       ),
+    );
+  }),
+);
+
+app.get("/app/activity", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/activity");
+    if (redirect) return redirect;
+    const accountId = c.req.query("account")?.trim() || undefined;
+    const pendingQ = c.req.query("pending") ?? "all";
+    const pending: "all" | "posted" | "pending" =
+      pendingQ === "posted" || pendingQ === "pending" ? pendingQ : "all";
+    const fromDate = c.req.query("from")?.trim() || undefined;
+    const toDate = c.req.query("to")?.trim() || undefined;
+    try {
+      const txs = listActivity(db, {
+        accountId,
+        pending: pending === "all" ? undefined : pending === "pending",
+        fromDate,
+        toDate,
+        limit: 200,
+      });
+      return c.html(
+        activityPage(
+          txs,
+          listAccounts(db).map((a) => ({ id: a.id, name: a.name })),
+          { accountId, pending, fromDate, toDate },
+        ),
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Invalid filter";
+      return c.html(
+        activityPage(
+          [],
+          listAccounts(db).map((a) => ({ id: a.id, name: a.name })),
+          { accountId, pending, fromDate, toDate },
+          msg,
+        ),
+        400,
+      );
+    }
+  }),
+);
+
+app.get("/app/net-worth", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/net-worth");
+    if (redirect) return redirect;
+    const accounts = listAccounts(db);
+    const assets = listHouseholdAssets(db);
+    return c.html(netWorthPage(computeNetWorth(accounts, assets), accounts.length, assets));
+  }),
+);
+
+app.get("/app/cashflow", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/cashflow");
+    if (redirect) return redirect;
+    const fromDate = c.req.query("from")?.trim() || undefined;
+    const toDate = c.req.query("to")?.trim() || undefined;
+    try {
+      const trend = computeCashflowTrend(db, { fromDate, toDate });
+      return c.html(cashflowPage(trend.current, undefined, trend));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Invalid range";
+      const fallback = computeCashflowTrend(db, {});
+      return c.html(cashflowPage(fallback.current, msg, fallback), 400);
+    }
+  }),
+);
+
+app.get("/app/connections", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/connections");
+    if (redirect) return redirect;
+    const msg = c.req.query("msg");
+    const err = c.req.query("error");
+    return c.html(
+      connectionsPage({
+        plaidItems: listPlaidItems(db).length,
+        snaptradeConnections: listSnapTradeConnections(db).length,
+        gmailAccounts: listGmailAccounts(db).length,
+        imapAccounts: listImapAccounts(db).length,
+        attention: collectAttention(db),
+        connectHints: listUnsatisfiedConnectHints(db),
+        livePlaid: isPlaidConfigured(),
+        liveSnaptrade: isSnapTradeConfigured(),
+        message: msg ? String(msg) : undefined,
+        error: err ? String(err) : undefined,
+      }),
     );
   }),
 );
@@ -346,11 +671,13 @@ app.post("/app/accounts", async (c) => {
         name,
         institution: institution || undefined,
         mask: mask || undefined,
-        kind: kind as "checking" | "savings" | "cash",
+        kind: parseFundingKind(kind),
         balanceUsd,
       });
       if (setupWizardPath(db) === "/onboard/obligation") {
-        return c.redirect("/onboard/obligation");
+        return c.redirect(
+          "/app/accounts?msg=Account+added+—+optional:+add+a+bill+in+Obligations+or+Skip+setup",
+        );
       }
       return c.redirect("/app/accounts?msg=Account+added");
     } catch (e) {
@@ -370,7 +697,7 @@ app.post("/app/accounts/:id/update", async (c) => {
         name: String(body.name ?? "").trim(),
         institution: String(body.institution ?? "").trim(),
         mask: String(body.mask ?? "").trim(),
-        kind: String(body.kind ?? "checking") as "checking" | "savings" | "cash",
+        kind: parseFundingKind(String(body.kind ?? "checking")),
         balanceUsd: Number(body.balanceUsd),
       });
       return c.redirect("/app/accounts?msg=Account+updated");
@@ -398,11 +725,10 @@ app.post("/app/accounts/:id/delete", (c) => {
 app.get("/app/obligations", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(
-      db,
-      ["/onboard/account", "/onboard/obligation"],
+    const redirect = maybeSetupRedirect(db, "/app/obligations", [
       "/app/obligations",
-    );
+      "/onboard/obligation",
+    ]);
     if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
@@ -534,14 +860,11 @@ app.post("/app/transfers/:id/approve", async (c) => {
   const id = c.req.param("id");
   const body = await c.req.parseBody();
   const note = String(body.note ?? "") || undefined;
-  return withDb((db) => {
+  return withDbAsync(async (db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     try {
-      const result = approveTransferProposal(db, id, note);
-      const msg =
-        result.status === "executed"
-          ? "Transfer+executed+on+manual+accounts"
-          : "Transfer+approved+(Plaid+legs+unchanged)";
+      const result = await approveTransferProposal(db, id, note);
+      const msg = encodeURIComponent(transferApprovalMessage(result.status));
       return c.redirect(`/app/transfers?msg=${msg}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "approve failed";
@@ -569,7 +892,7 @@ app.post("/app/transfers/:id/reject", async (c) => {
 app.get("/app/plaid", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, ["/onboard/account", "/onboard/obligation"], "/app/plaid");
+    const redirect = maybeSetupRedirect(db, "/app/plaid");
     if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
@@ -580,6 +903,7 @@ app.get("/app/plaid", (c) =>
         msg ? String(msg) : undefined,
         err ? String(err) : undefined,
         isPlaidConfigured(),
+        listUnsatisfiedConnectHints(db).filter((h) => h.action === "connect_plaid"),
       ),
     );
   }),
@@ -592,7 +916,7 @@ app.post("/app/plaid/connect-sandbox", async (c) => {
     const adapter = createPlaidAdapter();
     const { sync } = await connectSandboxPlaid(db, adapter, getVault());
     return c.redirect(
-      `/app/plaid?msg=${encodeURIComponent(`Connected — ${sync.transactionsNew} transactions imported`)}`,
+      `/app/accounts?msg=${encodeURIComponent(`Connected — ${sync.transactionsNew} transactions · My Accounts updated`)}`,
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "connect failed";
@@ -653,7 +977,7 @@ app.get("/app/plaid/callback", async (c) => {
       String(publicToken),
     );
     return c.redirect(
-      `/app/plaid?msg=${encodeURIComponent(`Connected — ${sync.transactionsNew} transactions imported`)}`,
+      `/app/accounts?msg=${encodeURIComponent(`Connected — ${sync.transactionsNew} transactions · My Accounts updated`)}`,
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "connect failed";
@@ -671,9 +995,17 @@ app.post("/app/plaid/sync", async (c) => {
     if (!results.length) {
       return c.redirect("/app/plaid?error=No+Plaid+items+linked");
     }
+    const failed = results.filter((r) => r.error);
+    if (failed.length) {
+      const msg = failed
+        .map((r) => r.error ?? "sync failed")
+        .join("; ")
+        .slice(0, 200);
+      return c.redirect(`/app/plaid?error=${encodeURIComponent(msg)}`);
+    }
     const newTx = results.reduce((s, r) => s + r.transactionsNew, 0);
     return c.redirect(
-      `/app/plaid?msg=${encodeURIComponent(`Sync complete — ${newTx} new transactions`)}`,
+      `/app/accounts?msg=${encodeURIComponent(`Sync complete — ${newTx} new transactions · My Accounts updated`)}`,
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "sync failed";
@@ -683,14 +1015,135 @@ app.post("/app/plaid/sync", async (c) => {
   }
 });
 
+app.post("/app/plaid/:id/unlink", (c) => {
+  const id = c.req.param("id");
+  return withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const result = unlinkPlaidItem(db, id, getVault());
+      return c.redirect(
+        `/app/accounts?msg=${encodeURIComponent(`Unlinked ${result.institutionName} — removed from My Accounts`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unlink failed";
+      return c.redirect(`/app/plaid?error=${encodeURIComponent(msg)}`);
+    }
+  });
+});
+
+app.get("/app/snaptrade", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/snaptrade");
+    if (redirect) return redirect;
+    const msg = c.req.query("msg");
+    const err = c.req.query("error");
+    return c.html(
+      snaptradePage(
+        listSnapTradeConnections(db),
+        countSnapTradeLinkedAccounts(db),
+        listSnapTradePositions(db),
+        msg ? String(msg) : undefined,
+        err ? String(err) : undefined,
+        isSnapTradeConfigured(),
+        listUnsatisfiedConnectHints(db).filter((h) => h.action === "connect_snaptrade"),
+      ),
+    );
+  }),
+);
+
+app.post("/app/snaptrade/connect-sandbox", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const { sync } = await connectSandboxSnapTrade(
+      db,
+      createSnapTradeAdapter(),
+      getVault(),
+    );
+    return c.redirect(
+      `/app/accounts?msg=${encodeURIComponent(`SnapTrade sandbox — ${sync.accountsUpdated} brokerage account(s) on My Accounts`)}`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "connect failed";
+    return c.redirect(`/app/snaptrade?error=${encodeURIComponent(msg)}`);
+  } finally {
+    db.close();
+  }
+});
+
+app.post("/app/snaptrade/connect", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    if (!isSnapTradeConfigured()) {
+      return c.redirect(
+        `/app/snaptrade?error=${encodeURIComponent("Set SNAPTRADE_CLIENT_ID and SNAPTRADE_CONSUMER_KEY")}`,
+      );
+    }
+    const result = await connectLiveSnapTrade(db, createSnapTradeAdapter(), getVault());
+    const hint = result.portalUrl
+      ? `Open portal: ${result.portalUrl}`
+      : "Connected — run Sync after linking in portal";
+    return c.redirect(`/app/snaptrade?msg=${encodeURIComponent(hint)}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "connect failed";
+    return c.redirect(`/app/snaptrade?error=${encodeURIComponent(msg)}`);
+  } finally {
+    db.close();
+  }
+});
+
+app.post("/app/snaptrade/sync", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const results = await syncAllSnapTradeConnections(
+      db,
+      createSnapTradeAdapter(),
+      getVault(),
+    );
+    if (!results.length) {
+      return c.redirect(`/app/snaptrade?error=${encodeURIComponent("No SnapTrade connections")}`);
+    }
+    const failed = results.filter((r) => r.error);
+    if (failed.length) {
+      return c.redirect(
+        `/app/snaptrade?error=${encodeURIComponent(failed.map((r) => r.error).join("; ").slice(0, 200))}`,
+      );
+    }
+    const n = results.reduce((s, r) => s + r.accountsUpdated, 0);
+    return c.redirect(
+      `/app/accounts?msg=${encodeURIComponent(`SnapTrade sync — ${n} account(s) updated`)}`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "sync failed";
+    return c.redirect(`/app/snaptrade?error=${encodeURIComponent(msg)}`);
+  } finally {
+    db.close();
+  }
+});
+
+app.post("/app/snaptrade/:id/unlink", (c) => {
+  const id = c.req.param("id");
+  return withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const result = unlinkSnapTradeConnection(db, id, getVault());
+      return c.redirect(
+        `/app/accounts?msg=${encodeURIComponent(`Unlinked ${result.label} — removed from My Accounts`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unlink failed";
+      return c.redirect(`/app/snaptrade?error=${encodeURIComponent(msg)}`);
+    }
+  });
+});
+
 app.get("/app/ingest", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(
-      db,
-      ["/onboard/account", "/onboard/obligation"],
-      "/app/ingest",
-    );
+    const redirect = maybeSetupRedirect(db, "/app/ingest", ["/app/ingest"]);
     if (redirect) return redirect;
     const token = getOrCreateIngestToken(db);
     const msg = c.req.query("msg");
@@ -709,6 +1162,9 @@ app.get("/app/ingest", (c) =>
         isGoogleOAuthConfigured(),
         msg ? String(msg) : undefined,
         err ? String(err) : undefined,
+        listUnsatisfiedConnectHints(db),
+        listDiscoverCandidates(db).filter((c) => c.assetHint && !c.assetConfirmed),
+        isMailgunIngressConfigured(),
       ),
     );
   }),
@@ -795,22 +1251,84 @@ app.post("/app/ingest/gmail/connect-sandbox", (c) =>
   }),
 );
 
+app.post("/app/ingest/gmail/:id/unlink", (c) => {
+  const id = c.req.param("id");
+  return withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const result = unlinkGmailAccount(db, id, getVault());
+      return c.redirect(
+        `/app/ingest?msg=${encodeURIComponent(`Unlinked Gmail ${result.email}`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unlink failed";
+      return c.redirect(`/app/ingest?error=${encodeURIComponent(msg)}`);
+    }
+  });
+});
+
 app.post("/app/ingest/poll-gmail", async (c) => {
   const db = openDatabase();
   try {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     const batch = await pollGmailIngest(db, getVault(), createDocumentAdapter());
+    const failed = batch.accountOutcomes.filter((o) => !o.ok);
+    if (failed.length && !batch.billsCreated) {
+      const msg = failed.map((o) => o.error ?? "poll failed").join("; ").slice(0, 200);
+      return c.redirect(`/app/ingest?error=${encodeURIComponent(msg)}`);
+    }
     if (!batch.billsCreated) {
       return c.redirect(
         `/app/ingest?error=${encodeURIComponent(`No new Gmail bills (${batch.accountsPolled} account(s))`)}`,
       );
     }
     const first = batch.results[0]!;
+    const suffix = failed.length ? ` · ${failed.length} account error(s)` : "";
     return c.redirect(
-      `/app/ingest/review/${first.event.id}?msg=${encodeURIComponent(`Gmail: ${batch.billsCreated} bill(s)`)}`,
+      `/app/ingest/review/${first.event.id}?msg=${encodeURIComponent(`Gmail: ${batch.billsCreated} bill(s)${suffix}`)}`,
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "gmail poll failed";
+    return c.redirect(`/app/ingest?error=${encodeURIComponent(msg)}`);
+  } finally {
+    db.close();
+  }
+});
+
+/**
+ * Run discover (poll + rank) then land on Connections so statement hints are visible.
+ * Why: P2 human path — Find in Gmail → Connect cards; Link remains a click.
+ */
+app.post("/app/ingest/discover", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const result = await discoverMailCandidates(db, getVault(), createDocumentAdapter());
+    return c.redirect(
+      `/app/connections?msg=${encodeURIComponent(result.message)}`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "discover failed";
+    const dest =
+      e instanceof DiscoverError && e.code === "no_mail" ? "/app/ingest" : "/app/connections";
+    return c.redirect(`${dest}?error=${encodeURIComponent(msg)}`);
+  } finally {
+    db.close();
+  }
+});
+
+app.post("/app/ingest/discover-sandbox", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const result = await discoverMailCandidates(db, getVault(), createDocumentAdapter(), {
+      sandbox: true,
+    });
+    return c.redirect(
+      `/app/connections?msg=${encodeURIComponent(result.message)}`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "discover failed";
     return c.redirect(`/app/ingest?error=${encodeURIComponent(msg)}`);
   } finally {
     db.close();
@@ -843,19 +1361,57 @@ app.post("/app/ingest/imap/connect", async (c) => {
   }
 });
 
+app.post("/app/ingest/imap/:id/unlink", (c) => {
+  const id = c.req.param("id");
+  return withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const result = unlinkImapAccount(db, id, getVault());
+      return c.redirect(
+        `/app/ingest?msg=${encodeURIComponent(`Unlinked IMAP ${result.label}`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unlink failed";
+      return c.redirect(`/app/ingest?error=${encodeURIComponent(msg)}`);
+    }
+  });
+});
+
+app.post("/app/ingest/asset/:id", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const eventId = c.req.param("id");
+    try {
+      const asset = confirmAssetHint(db, eventId);
+      return c.redirect(
+        `/app/ingest?msg=${encodeURIComponent(`Noted ${asset.kind}: ${asset.label}`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "asset confirm failed";
+      return c.redirect(`/app/ingest?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
 app.post("/app/ingest/poll-imap", async (c) => {
   const db = openDatabase();
   try {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     const batch = await pollImapIngest(db, getVault(), createDocumentAdapter());
+    const failed = batch.accountOutcomes.filter((o) => !o.ok);
+    if (failed.length && !batch.billsCreated) {
+      const msg = failed.map((o) => o.error ?? "poll failed").join("; ").slice(0, 200);
+      return c.redirect(`/app/ingest?error=${encodeURIComponent(msg)}`);
+    }
     if (!batch.billsCreated) {
       return c.redirect(
         `/app/ingest?error=${encodeURIComponent(`No new bills (${batch.accountsPolled} account(s) polled)`)}`,
       );
     }
     const first = batch.results[0]!;
+    const suffix = failed.length ? ` · ${failed.length} account error(s)` : "";
     return c.redirect(
-      `/app/ingest/review/${first.event.id}?msg=${encodeURIComponent(`IMAP: ${batch.billsCreated} bill(s) imported`)}`,
+      `/app/ingest/review/${first.event.id}?msg=${encodeURIComponent(`IMAP: ${batch.billsCreated} bill(s)${suffix}`)}`,
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "imap poll failed";
@@ -942,6 +1498,39 @@ app.post("/api/ingest/email", async (c) => {
       eventIds: batch.results.map((r) => r.event.id),
     });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : "ingest failed";
+    return c.json({ error: msg }, 400);
+  } finally {
+    db.close();
+  }
+});
+
+/**
+ * BL-8: Mailgun inbound (multipart form). Signing key required — unsigned
+ * posts never enter the pipeline. Generic JSON stays at POST /api/ingest/email.
+ */
+app.post("/api/ingest/mailgun", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) {
+      return c.json({ error: "not onboarded" }, 503);
+    }
+    const parsed = await c.req.parseBody();
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "string") body[key] = value;
+    }
+    const batch = await ingestMailgunWebhook(db, createDocumentAdapter(), body);
+    return c.json({
+      ok: true,
+      messagesProcessed: batch.messagesProcessed,
+      billsCreated: batch.billsCreated,
+      eventIds: batch.results.map((r) => r.event.id),
+    });
+  } catch (e) {
+    if (e instanceof MailgunWebhookError) {
+      return c.json({ error: e.message }, e.statusCode);
+    }
     const msg = e instanceof Error ? e.message : "ingest failed";
     return c.json({ error: msg }, 400);
   } finally {
@@ -1076,6 +1665,82 @@ app.post("/api/notifications/push-subscribe", async (c) => {
   } finally {
     db.close();
   }
+});
+
+/**
+ * BL-6 companion API (docs/specs/android-notification-reader.md).
+ * Local-first: no OAuth device flow in P0 — same trust as other /api routes.
+ */
+app.post("/devices/register", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.json({ error: "not onboarded" }, 503);
+    const body = (await c.req.json()) as {
+      fcm_token?: string;
+      fcmToken?: string;
+      platform?: string;
+      label?: string;
+    };
+    const token = body.fcm_token ?? body.fcmToken;
+    if (!token) return c.json({ error: "fcm_token is required" }, 400);
+    try {
+      const device = registerPushDevice(db, {
+        fcmToken: token,
+        platform: body.platform,
+        label: body.label,
+      });
+      return c.json({ ok: true, device, fcm: fcmStatus(db) });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "register failed";
+      return c.json({ error: msg }, 400);
+    }
+  } finally {
+    db.close();
+  }
+});
+
+app.get("/devices", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.json({ error: "not onboarded" }, 503);
+    return c.json({
+      ok: true,
+      fcm: fcmStatus(db),
+      devices: listPushDevices(db),
+    });
+  }),
+);
+
+app.delete("/devices/:id", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.json({ error: "not onboarded" }, 503);
+    const device = unlinkPushDevice(db, c.req.param("id"));
+    if (!device) return c.json({ error: "not found" }, 404);
+    return c.json({ ok: true, device });
+  }),
+);
+
+/** Spec alias for the companion — same payload as GET /api/notifications. */
+app.get("/notifications", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.json({ error: "not onboarded" }, 503);
+    const since = c.req.query("since");
+    const unreadOnly = c.req.query("unread") === "true";
+    const rows = listNotifications(db, {
+      since: since ? String(since) : undefined,
+      unreadOnly,
+    });
+    return c.json({ count: rows.length, notifications: rows });
+  }),
+);
+
+app.post("/notifications/:id/read", (c) => {
+  const id = c.req.param("id");
+  return withDb((db) => {
+    if (!isOnboarded(db)) return c.json({ error: "not onboarded" }, 503);
+    const n = markNotificationRead(db, id);
+    if (!n) return c.json({ error: "not found" }, 404);
+    return c.json({ ok: true, notification: n });
+  });
 });
 
 app.get("/pricing", (c) => c.html(pricingPage()));

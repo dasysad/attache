@@ -1,4 +1,4 @@
-# ADR-007: Email ingest strategy (IMAP first, hosted ingress deferred)
+# ADR-007: Email ingest strategy (IMAP first, BYO Mailgun opt-in)
 
 Area: data / privacy
 
@@ -35,14 +35,17 @@ Fastmail, etc.) rather than operate an Attache mail server.
   HITL → obligation.
 - **Read-only** IMAP; no sending mail from Attache in this slice.
 
-### Phase B (defer) — Attache-provided ingress addresses
+### Phase B (P0 pulled) — BYO Mailgun inbound, not Attache SMTP
 
-Revisit only when product requires `bills+{token}@ingest.attache.app` without user
-mail setup. Options at that time (not chosen now):
+Opt-in when `ATTACHE_MAILGUN_SIGNING_KEY` is set. Mailgun (the user's account)
+receives mail in **plaintext**. IMAP/Gmail remain the primary local-first path.
+Attache does not operate an SMTP server or SendGrid in this slice.
 
-- Self-hosted SMTP + webhook (Hetzner)
-- BYO Mailgun/SendGrid (user's account)
-- Attache pass-through inbound (explicit opt-in tier)
+- Webhook: `POST /api/ingest/mailgun` (HMAC timestamp+token)
+- Display address stays `bills+{token}@ingest.attache.app` (Mailgun route, not MX we run)
+- Generic `POST /api/ingest/email` remains for self-hosted JSON forwarders
+
+See [vs-hosted-mail-ingress.md](../plans/vs-hosted-mail-ingress.md).
 
 ### Unchanged — local/agent paths (always available)
 
@@ -57,18 +60,20 @@ mail setup. Options at that time (not chosen now):
 
 - **IMAP:** User's mail host sees mail (already true today). Attache client or
   local agent pulls; cloud never required.
-- **Hosted ingress (deferred):** Third party or Attache sees plaintext — only
-  with informed opt-in when implemented.
+- **Hosted ingress (opt-in):** Mailgun sees plaintext when `ATTACHE_MAILGUN_SIGNING_KEY`
+  is set. Attache-operated SMTP and SendGrid remain out.
 
 ## Consequences
 
-- Remove Mailgun/SendGrid from near-term roadmap; replace with **VS-4.2 IMAP**.
-- Keep `ingestEmailAddress()` as **display-only / future** until Phase B.
-- Maildrop + webhook remain for dev and self-hosted deployments.
+- IMAP/Gmail stay primary; BYO Mailgun is an explicit opt-in with honesty copy.
+- Keep `ingestEmailAddress()` as the display plus-address for Mailgun routes.
+- Maildrop + generic JSON webhook remain for dev and self-hosted deployments.
+- Attache-operated SMTP / SendGrid / pass-through billed inbound still deferred.
 
 ## References
 
 - [ADR-004](./004-ingestion-pipeline.md)
 - [docs/plans/vs-4.1.md](../plans/vs-4.1.md)
 - [docs/plans/vs-4.2-imap.md](../plans/vs-4.2-imap.md)
+- [vs-hosted-mail-ingress.md](../plans/vs-hosted-mail-ingress.md)
 - [ADR-008 Gmail OAuth](./008-gmail-oauth-local-vault.md) (VS-4.3)

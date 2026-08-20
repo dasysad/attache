@@ -130,6 +130,25 @@ export function listPendingBillEvents(db: Database.Database): IngestedEvent[] {
   return rows.map(mapEvent);
 }
 
+/**
+ * Unpromoted document/email events for discovery ranking (ADR-015 P1).
+ * Includes statements (connect hints) that listPendingBillEvents omits.
+ */
+export function listPendingDiscoverEvents(db: Database.Database): IngestedEvent[] {
+  const tenantId = requireTenant(db);
+  const rows = db
+    .prepare(
+      `SELECT * FROM ingested_event
+       WHERE tenant_id = ?
+         AND source IN ('document', 'email')
+         AND kind IN ('bill', 'statement', 'notice')
+         AND promoted_at IS NULL
+       ORDER BY ingested_at DESC`,
+    )
+    .all(tenantId) as EventRow[];
+  return rows.map(mapEvent);
+}
+
 export function getIngestedEventById(
   db: Database.Database,
   eventId: string,

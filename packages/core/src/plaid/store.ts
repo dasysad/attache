@@ -65,6 +65,33 @@ export function countPlaidLinkedAccounts(db: Database.Database): number {
   return row.c;
 }
 
+/** Funding accounts tied to a Plaid item (for unlink / error fan-out). */
+export function listAccountsForPlaidItem(
+  db: Database.Database,
+  plaidItemId: string,
+): Array<{ id: string; name: string }> {
+  const tenantId = requireTenant(db);
+  return db
+    .prepare(
+      `SELECT id, name FROM funding_account
+       WHERE tenant_id = ? AND plaid_item_id = ?
+       ORDER BY name ASC`,
+    )
+    .all(tenantId, plaidItemId) as Array<{ id: string; name: string }>;
+}
+
+/** Mark every funding account on an item as sync error (UI + agents). */
+export function markPlaidLinkedAccountsError(
+  db: Database.Database,
+  plaidItemId: string,
+): void {
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE funding_account SET sync_status = 'error', updated_at = ?
+     WHERE plaid_item_id = ?`,
+  ).run(now, plaidItemId);
+}
+
 export function createPlaidItem(
   db: Database.Database,
   input: {
@@ -114,6 +141,7 @@ export function markPlaidItemError(
     `UPDATE plaid_item SET status = 'error', error_code = ?, error_message = ?,
        updated_at = ? WHERE id = ?`,
   ).run(errorCode, errorMessage.slice(0, 500), now, itemId);
+  markPlaidLinkedAccountsError(db, itemId);
 }
 
 interface TxRow {
@@ -152,13 +180,62 @@ export function listRecentTransactions(
   db: Database.Database,
   limit = 20,
 ): BankTransaction[] {
+  return listTransactions(db, { limit });
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export interface ListTransactionsFilter {
+  /** Funding account id. Unknown id → empty list (not an error). */
+  accountId?: string;
+  /** true = pending only; false = posted only; omit = both. */
+  pending?: boolean;
+  /** Inclusive YYYY-MM-DD. */
+  fromDate?: string;
+  /** Inclusive YYYY-MM-DD. */
+  toDate?: string;
+  limit?: number;
+}
+
+/**
+ * Bank register with optional filters (Activity P1).
+ * Why: CLI/MCP/web share one query so a household filter is not UI-only.
+ */
+export function listTransactions(
+  db: Database.Database,
+  filter: ListTransactionsFilter = {},
+): BankTransaction[] {
   const tenantId = requireTenant(db);
+  if (filter.fromDate && !ISO_DATE.test(filter.fromDate)) {
+    throw new Error("fromDate must be YYYY-MM-DD");
+  }
+  if (filter.toDate && !ISO_DATE.test(filter.toDate)) {
+    throw new Error("toDate must be YYYY-MM-DD");
+  }
+
+  const clauses = ["tenant_id = ?"];
+  const params: unknown[] = [tenantId];
+  if (filter.accountId) {
+    clauses.push("funding_account_id = ?");
+    params.push(filter.accountId);
+  }
+  if (filter.pending === true) clauses.push("pending = 1");
+  if (filter.pending === false) clauses.push("pending = 0");
+  if (filter.fromDate) {
+    clauses.push("posted_date >= ?");
+    params.push(filter.fromDate);
+  }
+  if (filter.toDate) {
+    clauses.push("posted_date <= ?");
+    params.push(filter.toDate);
+  }
+  const limit = filter.limit ?? 100;
   const rows = db
     .prepare(
-      `SELECT * FROM bank_transaction WHERE tenant_id = ?
+      `SELECT * FROM bank_transaction WHERE ${clauses.join(" AND ")}
        ORDER BY posted_date DESC, created_at DESC LIMIT ?`,
     )
-    .all(tenantId, limit) as TxRow[];
+    .all(...params, limit) as TxRow[];
   return rows.map(mapTx);
 }
 
@@ -166,7 +243,7 @@ export function upsertBankTransaction(
   db: Database.Database,
   input: {
     fundingAccountId: string;
-    ingestedEventId: string;
+    ingestedEventId?: string;
     externalId: string;
     payee: string;
     amountUsd: number;
@@ -192,7 +269,7 @@ export function upsertBankTransaction(
     id,
     tenantId,
     input.fundingAccountId,
-    input.ingestedEventId,
+    input.ingestedEventId ?? null,
     input.externalId,
     input.payee,
     input.amountUsd,
@@ -202,4 +279,31 @@ export function upsertBankTransaction(
     now,
   );
   return mapTx(db.prepare("SELECT * FROM bank_transaction WHERE id = ?").get(id) as TxRow);
+}
+
+export function getBankTransaction(
+  db: Database.Database,
+  id: string,
+): BankTransaction | null {
+  const tenantId = requireTenant(db);
+  const row = db
+    .prepare(`SELECT * FROM bank_transaction WHERE id = ? AND tenant_id = ?`)
+    .get(id, tenantId) as TxRow | undefined;
+  return row ? mapTx(row) : null;
+}
+
+/**
+ * Recategorize a posted (or pending) bank line.
+ * Empty / whitespace category clears to null so cash-flow buckets as (uncategorized).
+ */
+export function setTransactionCategory(
+  db: Database.Database,
+  id: string,
+  category: string | null,
+): BankTransaction {
+  const existing = getBankTransaction(db, id);
+  if (!existing) throw new Error("transaction not found");
+  const next = category?.trim() || null;
+  db.prepare(`UPDATE bank_transaction SET category = ? WHERE id = ?`).run(next, id);
+  return getBankTransaction(db, id)!;
 }

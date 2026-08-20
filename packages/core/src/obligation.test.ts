@@ -85,4 +85,44 @@ describe("obligation management", () => {
     expect(obligationDisplayStatus(future)).toBe("upcoming");
     db.close();
   });
+
+  it("rejects empty payee, bad date, non-positive amount, invalid cadence (negative)", () => {
+    const { db } = setup();
+    expect(() =>
+      createObligation(db, { payee: "  ", amountUsd: 10, dueDate: "2099-01-01" }),
+    ).toThrow(/payee required/);
+    expect(() =>
+      createObligation(db, { payee: "Rent", amountUsd: 10, dueDate: "01-01-2099" }),
+    ).toThrow(/YYYY-MM-DD/);
+    expect(() =>
+      createObligation(db, { payee: "Rent", amountUsd: 0, dueDate: "2099-01-01" }),
+    ).toThrow(/positive/);
+    expect(() =>
+      createObligation(db, { payee: "Rent", amountUsd: -5, dueDate: "2099-01-01" }),
+    ).toThrow(/positive/);
+    expect(() =>
+      createObligation(db, {
+        payee: "Rent",
+        amountUsd: 10,
+        dueDate: "2099-01-01",
+        cadence: "weekly" as "once",
+      }),
+    ).toThrow(/cadence/);
+    db.close();
+  });
+
+  it("mark paid fails for unknown id and already-paid (negative)", () => {
+    const { db } = setup();
+    expect(() => markObligationPaid(db, "missing")).toThrow(
+      /not found or already paid/,
+    );
+    const ob = createObligation(db, {
+      payee: "Rent",
+      amountUsd: 100,
+      dueDate: "2099-06-01",
+    });
+    markObligationPaid(db, ob.id);
+    expect(() => markObligationPaid(db, ob.id)).toThrow(/already paid/);
+    db.close();
+  });
 });

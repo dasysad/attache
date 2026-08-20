@@ -17,6 +17,8 @@ export interface BillExtraction {
   classifier: "bill" | "statement" | "notice" | "other";
   confidence: number;
   rawText?: string;
+  institutionHint?: string | null;
+  rail?: "plaid" | "snaptrade" | null;
 }
 
 /**

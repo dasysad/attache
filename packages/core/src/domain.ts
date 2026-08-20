@@ -8,12 +8,37 @@ export type Provenance =
   | "google"
   | "ics"
   | "plaid"
+  | "snaptrade"
   | "email"
   | "document"
   | "agent"
   | "rule";
 
-export type FundingAccountKind = "checking" | "savings" | "cash";
+export type FundingAccountKind =
+  | "checking"
+  | "savings"
+  | "cash"
+  | "brokerage"
+  | "credit"
+  | "loan";
+
+/** Asset kinds that fund the 30-day runway (excludes brokerage + liabilities). */
+export const LIQUID_ACCOUNT_KINDS: FundingAccountKind[] = [
+  "checking",
+  "savings",
+  "cash",
+];
+
+export const LIABILITY_ACCOUNT_KINDS: FundingAccountKind[] = ["credit", "loan"];
+
+export const FUNDING_ACCOUNT_KINDS: FundingAccountKind[] = [
+  "checking",
+  "savings",
+  "cash",
+  "brokerage",
+  "credit",
+  "loan",
+];
 
 export type AccountSyncStatus = "manual" | "fresh" | "stale" | "error";
 
@@ -29,6 +54,8 @@ export interface FundingAccount {
   syncStatus: AccountSyncStatus;
   plaidAccountId: string | null;
   plaidItemId: string | null;
+  snaptradeAccountId: string | null;
+  snaptradeConnectionId: string | null;
   lastSyncedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -155,7 +182,9 @@ export interface PlaidBalancePayload {
 /** Normalized bill extraction inside ingested_event.payload_json (document/email). */
 export interface BillExtractPayload {
   payee: string;
+  /** 0 when unknown (statements) — confirmBillIngest still requires a positive amount. */
   amountUsd: number;
+  /** Empty when unknown (statements). */
   dueDate: string;
   cadence: ObligationCadence;
   autopay: boolean;
@@ -163,6 +192,9 @@ export interface BillExtractPayload {
   documentArtifactId: string | null;
   filename: string;
   rawText?: string;
+  /** Statement → Plaid/SnapTrade hint (ADR-015). Never auto-Link. */
+  institutionHint?: string | null;
+  rail?: "plaid" | "snaptrade" | null;
 }
 
 export interface DocumentArtifact {
@@ -190,6 +222,8 @@ export interface ImapAccount {
   status: "active" | "error" | "disconnected";
   lastSyncAt: string | null;
   lastUid: number | null;
+  /** Short poll/auth failure message when status=error (slice 4). */
+  lastError: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -204,6 +238,24 @@ export interface GmailAccount {
   status: "active" | "error" | "disconnected";
   lastSyncAt: string | null;
   historyId: string | null;
+  /** Short poll/auth failure message when status=error (slice 4). */
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** BL-5: SnapTrade brokerage connection — userSecret in vault only. */
+export interface SnapTradeConnection {
+  id: string;
+  tenantId: string;
+  /** SnapTrade userId (stable, not email). */
+  externalUserId: string;
+  label: string;
+  brokerageName: string | null;
+  vaultCredentialRef: string;
+  status: "active" | "error" | "disconnected";
+  lastSyncAt: string | null;
+  lastError: string | null;
   createdAt: string;
   updatedAt: string;
 }

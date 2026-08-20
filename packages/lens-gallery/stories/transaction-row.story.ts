@@ -33,6 +33,12 @@ export const story: Story = {
           category="Transport"
           pending
         ></att-transaction-row>
+        <att-transaction-row
+          payee="Unknown merchant"
+          date="2026-06-22"
+          .amount=${-12.00}
+          account="Checking ···4821"
+        ></att-transaction-row>
       </div>
     `)}
     ${section("In a list", html`

@@ -11,6 +11,7 @@ import type {
   ObligationOccurrence,
   SolvencyForecast,
 } from "./domain.js";
+import { isLiquidKind } from "./account.js";
 
 const MS_DAY = 86_400_000;
 
@@ -116,7 +117,9 @@ export function computeSolvencyForecast(
   const today = startOfTodayUtc();
   const end = addDays(today, horizonDays - 1);
 
-  const liquidBalanceUsd = accounts.reduce((s, a) => s + a.balanceUsd, 0);
+  const liquidBalanceUsd = accounts
+    .filter((a) => isLiquidKind(a.kind))
+    .reduce((s, a) => s + a.balanceUsd, 0);
 
   const occurrences: ObligationOccurrence[] = [];
   for (const ob of obligations) {

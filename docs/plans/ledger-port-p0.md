@@ -10,8 +10,8 @@ Money movement has an **auditable double-entry journal** instead of silently
 mutating `funding_account.balance_usd`. Transfers post through a `LedgerPort`
 adapter; the funding account row becomes a **projection** for fast UI reads.
 
-TigerBeetle remains backlog (BL-11). P0 ships a SQLite-backed adapter in
-`@attache/core` — same database file, new tables.
+TigerBeetle is opt-in (BL-11, [vs-tigerbeetle-ledger.md](./vs-tigerbeetle-ledger.md)).
+P0 ships a SQLite-backed adapter in `@attache/core` — same database file, new tables.
 
 **Done when:** approving a manual transfer proposal posts balanced ledger entries,
 updates projected balances, is idempotent on retry, and rejects insufficient funds.
@@ -60,7 +60,7 @@ current `balance_usd`. Existing dogfood data bootstraps lazily on first post.
 
 ## Non-goals (P0)
 
-- TigerBeetle binary / Litestar service (P1 / BL-11)
+- TigerBeetle replica / live Node client (P1 / BL-11 — [plan](./vs-tigerbeetle-ledger.md))
 - Pending two-phase transfers (HITL uses proposal queue + post on approve)
 - Plaid balance reconciliation into ledger (P2)
 - Rewiring manual `updateManualAccount({ balanceUsd })` — still allowed for edits; ledger is source of truth after first post

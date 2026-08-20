@@ -5,19 +5,24 @@ import { ingestDocumentBytes } from "../ingest/bill.js";
 import type { VaultPort } from "../vault/local-vault.js";
 import { createImapAdapter } from "./fake-adapter.js";
 import type { ImapIngestPort } from "./port.js";
+import { isLikelyBillEmail } from "./filter.js";
 import {
   listImapAccounts,
   markImapAccountError,
   updateImapSyncCursor,
 } from "./store.js";
+import type { MailAccountPollOutcome } from "../gmail/sync.js";
+
+export type { MailAccountPollOutcome };
 
 export interface ImapPollResult extends EmailIngestResult {
   accountsPolled: number;
+  accountOutcomes: MailAccountPollOutcome[];
 }
 
 /**
- * Poll all connected IMAP accounts → bill ingested_events.
- * How: fetch new UIDs, filter heuristics, ingest with stable imap:{accountId}:{uid} keys.
+ * Poll connected IMAP accounts → bill ingested_events.
+ * Retries accounts in `error` status (slice 4); success clears last_error.
  */
 export async function pollImapIngest(
   db: Database.Database,
@@ -25,23 +30,36 @@ export async function pollImapIngest(
   docAdapter: DocumentExtractionPort,
   adapter: ImapIngestPort = createImapAdapter(),
 ): Promise<ImapPollResult> {
-  const accounts = listImapAccounts(db).filter((a) => a.status === "active");
+  const accounts = listImapAccounts(db).filter(
+    (a) => a.status === "active" || a.status === "error",
+  );
   if (!accounts.length) {
     return {
       accountsPolled: 0,
       messagesProcessed: 0,
       billsCreated: 0,
       results: [],
+      accountOutcomes: [],
     };
   }
 
   const allResults: BillIngestResult[] = [];
+  const accountOutcomes: MailAccountPollOutcome[] = [];
   let messagesProcessed = 0;
 
   for (const account of accounts) {
+    let billsForAccount = 0;
     const password = vault.get(account.vaultCredentialRef);
     if (!password) {
-      markImapAccountError(db, account.id);
+      const message = "vault credential missing";
+      markImapAccountError(db, account.id, message);
+      accountOutcomes.push({
+        accountId: account.id,
+        label: account.label,
+        ok: false,
+        billsCreated: 0,
+        error: message,
+      });
       continue;
     }
 
@@ -50,29 +68,39 @@ export async function pollImapIngest(
       messagesProcessed += messages.length;
 
       for (const m of messages) {
+        if (
+          !isLikelyBillEmail({
+            subject: m.subject,
+            from: m.from,
+            bodyText: m.bodyText,
+            attachmentMimeTypes: m.attachments.map((a) => a.mimeType),
+          })
+        ) {
+          continue;
+        }
         if (m.attachments.length === 0 && m.bodyText.trim()) {
-          allResults.push(
-            await ingestDocumentBytes(db, docAdapter, {
-              filename: `imap-${m.uid}.txt`,
-              mimeType: "text/plain",
-              bytes: Buffer.from(m.bodyText, "utf8"),
-              source: "email",
-              externalId: `imap:${account.id}:${m.uid}:body`,
-            }),
-          );
+          const r = await ingestDocumentBytes(db, docAdapter, {
+            filename: `imap-${m.uid}.txt`,
+            mimeType: "text/plain",
+            bytes: Buffer.from(m.bodyText, "utf8"),
+            source: "email",
+            externalId: `imap:${account.id}:${m.uid}:body`,
+          });
+          allResults.push(r);
+          billsForAccount += 1;
           continue;
         }
 
         for (const att of m.attachments) {
-          allResults.push(
-            await ingestDocumentBytes(db, docAdapter, {
-              filename: att.filename,
-              mimeType: att.mimeType,
-              bytes: att.bytes,
-              source: "email",
-              externalId: `imap:${account.id}:${m.uid}:${att.filename}`,
-            }),
-          );
+          const r = await ingestDocumentBytes(db, docAdapter, {
+            filename: att.filename,
+            mimeType: att.mimeType,
+            bytes: att.bytes,
+            source: "email",
+            externalId: `imap:${account.id}:${m.uid}:${att.filename}`,
+          });
+          allResults.push(r);
+          billsForAccount += 1;
         }
       }
 
@@ -80,9 +108,27 @@ export async function pollImapIngest(
         updateImapSyncCursor(db, account.id, highUid);
       } else if (messages.length === 0 && account.lastUid == null) {
         updateImapSyncCursor(db, account.id, 0);
+      } else {
+        // Clear error status even when cursor unchanged.
+        updateImapSyncCursor(db, account.id, account.lastUid);
       }
-    } catch {
-      markImapAccountError(db, account.id);
+
+      accountOutcomes.push({
+        accountId: account.id,
+        label: account.label,
+        ok: true,
+        billsCreated: billsForAccount,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      markImapAccountError(db, account.id, message);
+      accountOutcomes.push({
+        accountId: account.id,
+        label: account.label,
+        ok: false,
+        billsCreated: billsForAccount,
+        error: message,
+      });
     }
   }
 
@@ -91,5 +137,6 @@ export async function pollImapIngest(
     messagesProcessed,
     billsCreated: allResults.length,
     results: allResults,
+    accountOutcomes,
   };
 }

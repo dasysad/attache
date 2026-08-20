@@ -34,6 +34,12 @@ export const story: Story = {
           helper="1 bill — City Water"
           tone="bad"
         ></att-stat>
+        <att-stat
+          label="Net worth"
+          value="$-400"
+          helper="Only liabilities"
+          tone="bad"
+        ></att-stat>
       </div>
     `)}
   `,

@@ -12,7 +12,9 @@ export class AttAccountRow extends LitElement {
     name: { type: String },
     mask: { type: String },
     institution: { type: String },
+    kind: { type: String },
     balance: { type: Number },
+    balanceLabel: { type: String, attribute: "balance-label" },
     syncStatus: { type: String },
     syncLabel: { type: String },
     primary: { type: Boolean, reflect: true },
@@ -22,7 +24,11 @@ export class AttAccountRow extends LitElement {
   name = "";
   mask = "";
   institution = "";
+  /** checking | savings | cash | brokerage | credit | loan — shown as a chip when set. */
+  kind = "";
   balance = 0;
+  /** Override; credit/loan default to "Balance owed". */
+  balanceLabel = "";
   syncStatus: AttAccountSyncStatus = "manual";
   syncLabel = "";
   primary = false;
@@ -96,7 +102,14 @@ export class AttAccountRow extends LitElement {
     }
   }
 
+  private resolvedBalanceLabel(): string {
+    if (this.balanceLabel) return this.balanceLabel;
+    if (this.kind === "credit" || this.kind === "loan") return "Balance owed";
+    return "Available";
+  }
+
   render() {
+    const owed = this.kind === "credit" || this.kind === "loan";
     return html`
       <div class="row" part="row">
         <div class="main">
@@ -105,6 +118,7 @@ export class AttAccountRow extends LitElement {
             ? html`<p class="subtitle">${this.institution}</p>`
             : ""}
           <div class="meta">
+            ${this.kind ? html`<att-chip tone="neutral">${this.kind}</att-chip>` : ""}
             ${this.syncChip()}
             ${this.primary ? html`<att-chip tone="info">Ledger primary</att-chip>` : ""}
             ${this.syncLabel
@@ -113,8 +127,13 @@ export class AttAccountRow extends LitElement {
           </div>
         </div>
         <div class="balance" part="balance">
-          <span class="balance-label">Available</span>
-          <att-money .amount=${this.balance} size="lg" tone="neutral" sign="never"></att-money>
+          <span class="balance-label">${this.resolvedBalanceLabel()}</span>
+          <att-money
+            .amount=${this.balance}
+            size="lg"
+            tone=${owed ? "outflow" : "neutral"}
+            sign="never"
+          ></att-money>
         </div>
       </div>
     `;

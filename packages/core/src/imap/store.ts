@@ -23,6 +23,7 @@ interface ImapRow {
   status: string;
   last_sync_at: string | null;
   last_uid: number | null;
+  last_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +42,7 @@ function mapRow(row: ImapRow): ImapAccount {
     status: row.status as ImapAccount["status"],
     lastSyncAt: row.last_sync_at,
     lastUid: row.last_uid,
+    lastError: row.last_error ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -98,7 +100,7 @@ export function connectImapAccount(
   if (existing) {
     db.prepare(
       `UPDATE imap_account SET label = ?, port = ?, secure = ?, vault_credential_ref = ?,
-       mailbox = ?, status = 'active', updated_at = ? WHERE id = ?`,
+       mailbox = ?, status = 'active', last_error = NULL, updated_at = ? WHERE id = ?`,
     ).run(
       input.label?.trim() || existing.label,
       input.port ?? 993,
@@ -145,14 +147,57 @@ export function updateImapSyncCursor(
   const tenantId = requireTenant(db);
   const now = new Date().toISOString();
   db.prepare(
-    `UPDATE imap_account SET last_sync_at = ?, last_uid = COALESCE(?, last_uid), updated_at = ?
+    `UPDATE imap_account SET last_sync_at = ?, last_uid = COALESCE(?, last_uid),
+       status = 'active', last_error = NULL, updated_at = ?
      WHERE id = ? AND tenant_id = ?`,
   ).run(now, highUid, now, accountId, tenantId);
 }
 
-export function markImapAccountError(db: Database.Database, accountId: string): void {
+/** Persist poll/auth failure for UI + agents (slice 4). */
+export function markImapAccountError(
+  db: Database.Database,
+  accountId: string,
+  message = "poll failed",
+): void {
   const tenantId = requireTenant(db);
   db.prepare(
-    `UPDATE imap_account SET status = 'error', updated_at = ? WHERE id = ? AND tenant_id = ?`,
+    `UPDATE imap_account SET status = 'error', last_error = ?, updated_at = ?
+     WHERE id = ? AND tenant_id = ?`,
+  ).run(message.slice(0, 500), new Date().toISOString(), accountId, tenantId);
+}
+
+/** Clear error without reconnect — next poll will retry. */
+export function clearImapAccountError(db: Database.Database, accountId: string): void {
+  const tenantId = requireTenant(db);
+  const acct = getImapAccount(db, accountId);
+  if (!acct) throw new Error("imap account not found");
+  db.prepare(
+    `UPDATE imap_account SET status = 'active', last_error = NULL, updated_at = ?
+     WHERE id = ? AND tenant_id = ?`,
   ).run(new Date().toISOString(), accountId, tenantId);
+}
+
+export interface UnlinkImapResult {
+  accountId: string;
+  label: string;
+  vaultCleared: boolean;
+}
+
+/** Remove IMAP link + vault password (slice 4). */
+export function unlinkImapAccount(
+  db: Database.Database,
+  accountId: string,
+  vault: VaultPort,
+): UnlinkImapResult {
+  const account = getImapAccount(db, accountId);
+  if (!account) throw new Error("imap account not found");
+  db.prepare(`DELETE FROM imap_account WHERE id = ?`).run(accountId);
+  let vaultCleared = false;
+  try {
+    vault.delete(account.vaultCredentialRef);
+    vaultCleared = true;
+  } catch {
+    /* missing secret ok */
+  }
+  return { accountId: account.id, label: account.label, vaultCleared };
 }

@@ -16,6 +16,9 @@ import "./att-select.js";
 import "./att-stat.js";
 import "./att-toggle.js";
 import "./att-transaction-row.js";
+import "./att-position-row.js";
+import "./att-cashflow-bar.js";
+import "./att-cashflow-trend.js";
 
 import "./att-wizard-steps.js";
 
@@ -37,6 +40,9 @@ export { AttSelect } from "./att-select.js";
 export { AttStat } from "./att-stat.js";
 export { AttToggle } from "./att-toggle.js";
 export { AttTransactionRow } from "./att-transaction-row.js";
+export { AttPositionRow } from "./att-position-row.js";
+export { AttCashflowBar } from "./att-cashflow-bar.js";
+export { AttCashflowTrend } from "./att-cashflow-trend.js";
 
 export {
   formatMoneyCents,

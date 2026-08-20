@@ -27,5 +27,6 @@ export const story: Story = {
     ${section("Text & outline", grid(TEXT.map((v) => colorSwatch(v))))}
     ${section("Brand", grid(BRAND.map((v) => colorSwatch(v))))}
     ${section("Feedback", grid(FEEDBACK.map((v) => colorSwatch(v))))}
+    ${section("Switch theme", html`<p style="color:var(--att-color-text-muted);font-size:var(--att-type-body-size)">Use the Lens theme switcher: Household (dark) vs Daylight (light). Same tokens, inverted surfaces.</p>`)}
   `,
 };

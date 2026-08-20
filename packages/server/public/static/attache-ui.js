@@ -705,7 +705,9 @@ var AttAccountRow = class extends i4 {
     name: { type: String },
     mask: { type: String },
     institution: { type: String },
+    kind: { type: String },
     balance: { type: Number },
+    balanceLabel: { type: String, attribute: "balance-label" },
     syncStatus: { type: String },
     syncLabel: { type: String },
     primary: { type: Boolean, reflect: true },
@@ -714,7 +716,11 @@ var AttAccountRow = class extends i4 {
   name = "";
   mask = "";
   institution = "";
+  /** checking | savings | cash | brokerage | credit | loan — shown as a chip when set. */
+  kind = "";
   balance = 0;
+  /** Override; credit/loan default to "Balance owed". */
+  balanceLabel = "";
   syncStatus = "manual";
   syncLabel = "";
   primary = false;
@@ -784,21 +790,33 @@ var AttAccountRow = class extends i4 {
         return b2`<att-chip tone="neutral">Manual</att-chip>`;
     }
   }
+  resolvedBalanceLabel() {
+    if (this.balanceLabel) return this.balanceLabel;
+    if (this.kind === "credit" || this.kind === "loan") return "Balance owed";
+    return "Available";
+  }
   render() {
+    const owed = this.kind === "credit" || this.kind === "loan";
     return b2`
       <div class="row" part="row">
         <div class="main">
           <p class="title" part="title">${this.displayName()}</p>
           ${this.institution ? b2`<p class="subtitle">${this.institution}</p>` : ""}
           <div class="meta">
+            ${this.kind ? b2`<att-chip tone="neutral">${this.kind}</att-chip>` : ""}
             ${this.syncChip()}
             ${this.primary ? b2`<att-chip tone="info">Ledger primary</att-chip>` : ""}
             ${this.syncLabel ? b2`<span class="subtitle" style="margin:0">${this.syncLabel}</span>` : ""}
           </div>
         </div>
         <div class="balance" part="balance">
-          <span class="balance-label">Available</span>
-          <att-money .amount=${this.balance} size="lg" tone="neutral" sign="never"></att-money>
+          <span class="balance-label">${this.resolvedBalanceLabel()}</span>
+          <att-money
+            .amount=${this.balance}
+            size="lg"
+            tone=${owed ? "outflow" : "neutral"}
+            sign="never"
+          ></att-money>
         </div>
       </div>
     `;
@@ -2085,14 +2103,303 @@ if (!customElements.get("att-transaction-row")) {
   customElements.define("att-transaction-row", AttTransactionRow);
 }
 
+// src/att-position-row.ts
+var AttPositionRow = class extends i4 {
+  static properties = {
+    symbol: { type: String },
+    account: { type: String },
+    units: { type: Number },
+    price: { type: Number },
+    marketValue: { type: Number }
+  };
+  symbol = "";
+  account = "";
+  units = 0;
+  price = 0;
+  marketValue = 0;
+  static styles = i`
+    :host {
+      display: block;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--att-space-4);
+      align-items: center;
+      padding: var(--att-space-3) var(--att-space-4);
+      background: var(--att-color-surface);
+    }
+    .symbol {
+      margin: 0;
+      font-family: var(--att-font-mono);
+      font-size: var(--att-type-body-size);
+      font-weight: 600;
+      color: var(--att-color-text);
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--att-space-2);
+      align-items: center;
+      margin-top: var(--att-space-1);
+      font-size: var(--att-type-label-size);
+      color: var(--att-color-text-muted);
+    }
+    .value {
+      text-align: right;
+    }
+    .value-label {
+      display: block;
+      font-size: var(--att-type-label-size);
+      color: var(--att-color-text-subtle);
+      text-transform: uppercase;
+      letter-spacing: var(--att-type-label-tracking);
+      margin-bottom: var(--att-space-1);
+    }
+  `;
+  render() {
+    const unitsLabel = this.units === 1 ? "1 share" : `${this.units.toLocaleString("en-US")} shares`;
+    return b2`
+      <div class="row" part="row">
+        <div>
+          <p class="symbol" part="symbol">${this.symbol || "\u2014"}</p>
+          <div class="meta">
+            <span>${unitsLabel} @ $${this.price.toFixed(2)}</span>
+            ${this.account ? b2`<att-chip tone="neutral">${this.account}</att-chip>` : ""}
+          </div>
+        </div>
+        <div class="value" part="value">
+          <span class="value-label">Market value</span>
+          <att-money .amount=${this.marketValue} size="lg" tone="neutral" sign="never"></att-money>
+        </div>
+      </div>
+    `;
+  }
+};
+if (!customElements.get("att-position-row")) {
+  customElements.define("att-position-row", AttPositionRow);
+}
+
+// src/att-cashflow-bar.ts
+var AttCashflowBar = class extends i4 {
+  static properties = {
+    bucketsJson: { type: String, attribute: "buckets-json" },
+    emptyHint: { type: String, attribute: "empty-hint" }
+  };
+  bucketsJson = "[]";
+  emptyHint = "No posted transactions in this window.";
+  static styles = i`
+    :host {
+      display: block;
+    }
+    .wrap {
+      background: var(--att-color-surface);
+      border: var(--att-border-thin) solid var(--att-color-outline);
+      border-radius: var(--att-radius-lg);
+      padding: var(--att-space-4);
+    }
+    .title {
+      margin: 0 0 var(--att-space-4);
+      font-size: var(--att-type-label-size);
+      font-weight: var(--att-type-label-weight);
+      letter-spacing: var(--att-type-label-tracking);
+      text-transform: uppercase;
+      color: var(--att-color-text-subtle);
+    }
+    .empty {
+      padding: var(--att-space-8);
+      text-align: center;
+      color: var(--att-color-text-muted);
+      font-size: var(--att-type-body-size);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 8rem 1fr auto;
+      gap: var(--att-space-3);
+      align-items: center;
+      margin-bottom: var(--att-space-3);
+    }
+    .cat {
+      font-size: var(--att-type-label-size);
+      color: var(--att-color-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .track {
+      height: 10px;
+      background: var(--att-color-surface-raised);
+      border-radius: var(--att-radius-sm);
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      background: var(--att-color-primary);
+      border-radius: var(--att-radius-sm);
+    }
+    .amt {
+      font-family: var(--att-font-mono);
+      font-size: var(--att-type-mono-size);
+      color: var(--att-color-text);
+      font-variant-numeric: tabular-nums;
+    }
+  `;
+  parseBuckets() {
+    try {
+      const data = JSON.parse(this.bucketsJson);
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+  render() {
+    const buckets = this.parseBuckets();
+    if (buckets.length === 0) {
+      return b2`<div class="wrap"><p class="empty">${this.emptyHint}</p></div>`;
+    }
+    const maxOut = Math.max(...buckets.map((b3) => b3.outflowUsd), 1);
+    return b2`
+      <div class="wrap" part="chart">
+        <p class="title">Outflow by category</p>
+        ${buckets.map((b3) => {
+      const pct = Math.max(2, Math.round(b3.outflowUsd / maxOut * 100));
+      const label = b3.outflowUsd > 0 ? `$${b3.outflowUsd.toFixed(2)}` : `+$${b3.inflowUsd.toFixed(2)}`;
+      return b2`
+            <div class="row">
+              <span class="cat" title=${b3.category}>${b3.category}</span>
+              <div class="track">
+                <div class="fill" style="width:${b3.outflowUsd > 0 ? pct : 0}%"></div>
+              </div>
+              <span class="amt">${label}</span>
+            </div>
+          `;
+    })}
+      </div>
+    `;
+  }
+};
+if (!customElements.get("att-cashflow-bar")) {
+  customElements.define("att-cashflow-bar", AttCashflowBar);
+}
+
+// src/att-cashflow-trend.ts
+var AttCashflowTrend = class extends i4 {
+  static properties = {
+    seriesJson: { type: String, attribute: "series-json" },
+    emptyHint: { type: String, attribute: "empty-hint" },
+    height: { type: Number }
+  };
+  seriesJson = "[]";
+  emptyHint = "No posted spend in this window to chart.";
+  height = 120;
+  static styles = i`
+    :host {
+      display: block;
+    }
+    .wrap {
+      background: var(--att-color-surface);
+      border: var(--att-border-thin) solid var(--att-color-outline);
+      border-radius: var(--att-radius-lg);
+      padding: var(--att-space-4);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: var(--att-space-3);
+    }
+    .title {
+      margin: 0;
+      font-size: var(--att-type-label-size);
+      font-weight: var(--att-type-label-weight);
+      letter-spacing: var(--att-type-label-tracking);
+      text-transform: uppercase;
+      color: var(--att-color-text-subtle);
+    }
+    .empty {
+      padding: var(--att-space-8);
+      text-align: center;
+      color: var(--att-color-text-muted);
+      font-size: var(--att-type-body-size);
+    }
+    svg {
+      width: 100%;
+      height: var(--chart-h, 120px);
+      display: block;
+    }
+    .axis-label {
+      font-size: 10px;
+      fill: var(--att-color-text-subtle);
+      font-family: var(--att-font-mono);
+    }
+  `;
+  parseSeries() {
+    try {
+      const data = JSON.parse(this.seriesJson);
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+  renderChart(series) {
+    const w2 = 600;
+    const h3 = this.height;
+    const pad = { t: 8, r: 12, b: 28, l: 48 };
+    const innerW = w2 - pad.l - pad.r;
+    const innerH = h3 - pad.t - pad.b;
+    const values = series.map((p3) => p3.outflowUsd);
+    const maxB = Math.max(...values, 1);
+    const x2 = (i5) => pad.l + i5 / Math.max(series.length - 1, 1) * innerW;
+    const y3 = (v2) => pad.t + innerH - v2 / maxB * innerH;
+    const points = series.map((p3, i5) => `${x2(i5)},${y3(p3.outflowUsd)}`).join(" ");
+    const firstLabel = series[0]?.date.slice(5) ?? "";
+    const lastLabel = series[series.length - 1]?.date.slice(5) ?? "";
+    return b2`
+      <svg viewBox="0 0 ${w2} ${h3}" role="img" aria-label="Daily outflow in this window">
+        <polyline
+          points="${points}"
+          fill="none"
+          stroke="var(--att-color-primary)"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+        <text class="axis-label" x="${pad.l}" y="${h3 - 6}">${firstLabel}</text>
+        <text class="axis-label" x="${w2 - pad.r}" y="${h3 - 6}" text-anchor="end">${lastLabel}</text>
+        <text class="axis-label" x="${pad.l - 6}" y="${pad.t + 4}" text-anchor="end">
+          $${Math.round(maxB).toLocaleString()}
+        </text>
+      </svg>
+    `;
+  }
+  render() {
+    const series = this.parseSeries();
+    if (series.length === 0) {
+      return b2`<div class="wrap"><p class="empty">${this.emptyHint}</p></div>`;
+    }
+    return b2`
+      <div class="wrap" style="--chart-h: ${this.height}px" part="chart">
+        <div class="header">
+          <p class="title">Daily outflow</p>
+        </div>
+        ${this.renderChart(series)}
+      </div>
+    `;
+  }
+};
+if (!customElements.get("att-cashflow-trend")) {
+  customElements.define("att-cashflow-trend", AttCashflowTrend);
+}
+
 // src/att-wizard-steps.ts
 var AttWizardSteps = class extends i4 {
   static properties = {
     current: { type: Number },
-    total: { type: Number }
+    total: { type: Number },
+    labels: { type: String }
   };
   current = 1;
-  total = 3;
+  total = 5;
+  labels = "Household,Find mail,Connect,Account,Bills";
   static styles = i`
     :host {
       display: block;
@@ -2126,10 +2433,11 @@ var AttWizardSteps = class extends i4 {
     }
   `;
   render() {
-    const labels = ["Household", "Account", "Bills"];
+    const items = this.labels.split(",").map((s4) => s4.trim()).filter(Boolean);
+    const total = this.total > 0 ? this.total : items.length;
     return b2`
       <ol part="steps">
-        ${labels.slice(0, this.total).map(
+        ${items.slice(0, total).map(
       (label, i5) => b2`
             <li class="${i5 + 1 === this.current ? "active" : i5 + 1 < this.current ? "done" : ""}">
               ${label}
@@ -2148,6 +2456,8 @@ export {
   AttBadge,
   AttButton,
   AttCard,
+  AttCashflowBar,
+  AttCashflowTrend,
   AttCheckbox,
   AttChip,
   AttCostReceipt,
@@ -2156,6 +2466,7 @@ export {
   AttMoney,
   AttObligationRow,
   AttObligationTimeline,
+  AttPositionRow,
   AttRunwayChart,
   AttSelect,
   AttStat,

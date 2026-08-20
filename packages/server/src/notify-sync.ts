@@ -4,6 +4,8 @@
 import {
   countUnreadNotifications,
   countPendingTransferProposals,
+  deliverFcmForNotification,
+  getFcm,
   listNotifications,
   openDatabase,
   refreshNotifications,
@@ -17,8 +19,17 @@ export function syncNotificationsSync(db: AttacheDb): void {
   const result = refreshNotifications(db);
   setNavUnreadCount(countUnreadNotifications(db));
   setTransferPendingCount(countPendingTransferProposals(db));
-  if (result.created > 0 && isPushConfigured()) {
-    const fresh = listNotifications(db, { unreadOnly: true, limit: result.created });
+  if (result.created <= 0) return;
+  const fresh = listNotifications(db, { unreadOnly: true, limit: result.created });
+  if (isPushConfigured()) {
     void Promise.all(fresh.map((n) => deliverPushForNotification(db, n)));
+  }
+  try {
+    const fcm = getFcm();
+    if (fcm) {
+      void Promise.all(fresh.map((n) => deliverFcmForNotification(db, n, fcm)));
+    }
+  } catch {
+    // ATTACHE_FCM=live without a server key — skip fan-out; tokens stay stored.
   }
 }

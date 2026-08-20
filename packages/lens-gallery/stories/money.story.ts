@@ -27,5 +27,8 @@ export const story: Story = {
     ${section("Cents input", html`
       <att-money .amount=${341218} cents></att-money>
     `)}
+    ${section("Negative net worth", html`
+      <att-money .amount=${-400} size="lg" tone="outflow" sign="always"></att-money>
+    `)}
   `,
 };

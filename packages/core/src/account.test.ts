@@ -12,6 +12,9 @@ import {
   deleteManualAccount,
   getAccount,
   listAccounts,
+  parseFundingKind,
+  sumLiabilityUsd,
+  sumLiquidBalanceUsd,
   updateManualAccount,
 } from "./account.js";
 
@@ -71,6 +74,27 @@ describe("account management", () => {
     createAccount(db, { name: "Zebra", balanceUsd: 1 });
     createAccount(db, { name: "Alpha", balanceUsd: 2 });
     expect(listAccounts(db).map((a) => a.name)).toEqual(["Alpha", "Zebra"]);
+    db.close();
+  });
+
+  it("excludes brokerage and liabilities from liquid runway", () => {
+    const { db } = setup();
+    createAccount(db, { name: "Checking", balanceUsd: 100, kind: "checking" });
+    createAccount(db, { name: "Broker", balanceUsd: 900, kind: "brokerage" });
+    createAccount(db, { name: "Visa", balanceUsd: 40, kind: "credit" });
+    createAccount(db, { name: "Mortgage", balanceUsd: 200, kind: "loan" });
+    const accounts = listAccounts(db);
+    expect(sumLiquidBalanceUsd(accounts)).toBe(100);
+    expect(sumLiabilityUsd(accounts)).toBe(240);
+    db.close();
+  });
+
+  it("rejects unknown kinds (negative)", () => {
+    const { db } = setup();
+    expect(() =>
+      createAccount(db, { name: "X", balanceUsd: 1, kind: "foo" as never }),
+    ).toThrow(/kind must be/);
+    expect(() => parseFundingKind("envelope")).toThrow(/kind must be/);
     db.close();
   });
 });

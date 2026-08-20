@@ -12,6 +12,15 @@ export interface GmailFetchResult {
 }
 
 /**
+ * First-sync bounds for Gmail list (ADR-015). Incremental history ignores lookback.
+ * Callers must clamp — live adapter also caps limit at DISCOVER_MAX_LIMIT.
+ */
+export interface GmailFetchOptions {
+  lookbackDays?: number;
+  limit?: number;
+}
+
+/**
  * Gmail API ingest port — live uses REST; sandbox for tests.
  */
 export interface GmailIngestPort {
@@ -19,5 +28,6 @@ export interface GmailIngestPort {
   fetchNewMessages(
     account: GmailAccount,
     accessToken: string,
+    options?: GmailFetchOptions,
   ): Promise<GmailFetchResult>;
 }

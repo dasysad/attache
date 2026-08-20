@@ -24,6 +24,13 @@ function daysBetween(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / MS_DAY);
 }
 
+const CADENCES: readonly ObligationCadence[] = ["once", "monthly", "yearly"];
+
+/** SQLite will store any string; reject junk at the domain boundary. */
+function isObligationCadence(value: string): value is ObligationCadence {
+  return (CADENCES as readonly string[]).includes(value);
+}
+
 /** UI status for a single obligation row (manage page + dashboard). */
 export function obligationDisplayStatus(
   ob: Obligation,
@@ -149,6 +156,12 @@ export function getObligation(
   return row ? mapRow(row) : null;
 }
 
+/**
+ * Create a native (typed) obligation — CLI/MCP/web share this.
+ * How: validate payee/amount/due/cadence, insert with provenance `native`.
+ * Why: ingest uses `createObligationFromIngest` instead so HITL bills keep
+ * email provenance. This path is onboard-gap fill, not Gmail confirm.
+ */
 export function createObligation(
   db: Database.Database,
   input: {
@@ -168,6 +181,10 @@ export function createObligation(
   if (!Number.isFinite(input.amountUsd) || input.amountUsd <= 0) {
     throw new Error("amount must be positive");
   }
+  const cadence = input.cadence ?? "once";
+  if (!isObligationCadence(cadence)) {
+    throw new Error("cadence must be once|monthly|yearly");
+  }
 
   const now = new Date().toISOString();
   const id = randomUUID();
@@ -180,7 +197,7 @@ export function createObligation(
     tenantId,
     input.payee.trim(),
     input.amountUsd,
-    input.cadence ?? "once",
+    cadence,
     input.dueDate,
     input.autopay ? 1 : 0,
     input.notes?.trim() || null,
@@ -220,6 +237,10 @@ export function updateObligation(
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
     throw new Error("amount must be positive");
   }
+  const cadence = input.cadence ?? existing.cadence;
+  if (!isObligationCadence(cadence)) {
+    throw new Error("cadence must be once|monthly|yearly");
+  }
 
   const now = new Date().toISOString();
   db.prepare(
@@ -231,7 +252,7 @@ export function updateObligation(
     payee,
     amountUsd,
     dueDate,
-    input.cadence ?? existing.cadence,
+    cadence,
     input.autopay !== undefined ? (input.autopay ? 1 : 0) : (existing.autopay ? 1 : 0),
     input.notes !== undefined ? input.notes.trim() || null : existing.notes,
     now,
@@ -248,6 +269,10 @@ export function deleteObligation(db: Database.Database, obligationId: string): v
   if (result.changes === 0) throw new Error("obligation not found");
 }
 
+/**
+ * Stamp paid_at. Does not ACH or post the ledger — honesty: paid ≠ transferred.
+ * Unknown id and already-paid share one error so clients cannot probe ids.
+ */
 export function markObligationPaid(
   db: Database.Database,
   obligationId: string,

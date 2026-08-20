@@ -4,5 +4,6 @@ export default defineConfig({
   title: "Attache",
   themes: [
     { id: "base", label: "Household (dark)" },
+    { id: "daylight", label: "Daylight (light)" },
   ],
 });

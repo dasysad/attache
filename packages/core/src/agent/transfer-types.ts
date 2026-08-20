@@ -4,7 +4,9 @@ export type TransferProposalStatus =
   | "pending"
   | "approved"
   | "rejected"
-  | "executed";
+  | "executed"
+  | "ach_pending"
+  | "ach_failed";
 
 export type TransferProposedBy = "agent" | "cli" | "mcp" | "web";
 

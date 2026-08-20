@@ -12,7 +12,9 @@ export type NotificationKind =
   | "hitl_transfer"
   | "ingestion_review"
   | "merge"
-  | "system";
+  | "system"
+  /** BL-7: HIBP hit on a high-value email. Not a password-manager alert. */
+  | "credential_hygiene";
 
 export interface Notification {
   id: string;

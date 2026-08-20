@@ -9,6 +9,7 @@ import type { PlaidIngestPort, PlaidSyncSnapshot } from "../ingest/plaid-port.js
 import type { PlaidLinkedAccount } from "../ingest/plaid-port.js";
 import { createPlaidConfiguration, loadPlaidConfig } from "../plaid/config.js";
 import { mapPlaidApiError } from "../plaid/errors.js";
+import { mapPlaidAccountKind } from "../plaid/kind-map.js";
 
 /**
  * Live Plaid adapter — real Link + API (v1 hardening slice 3).
@@ -126,8 +127,8 @@ export class LivePlaidAdapter implements PlaidIngestPort {
 }
 
 function mapAccount(acct: AccountBase): PlaidLinkedAccount {
-  const kind =
-    acct.subtype === "savings" ? "savings" : acct.subtype === "checking" ? "checking" : "other";
+  const mapped = mapPlaidAccountKind(acct.subtype, acct.type);
+  const kind = mapped === "other" ? "other" : mapped;
   const balanceUsd = acct.balances.current ?? acct.balances.available ?? 0;
   return {
     plaidAccountId: acct.account_id,

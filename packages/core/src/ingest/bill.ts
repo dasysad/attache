@@ -73,6 +73,8 @@ export async function ingestDocumentBytes(
     documentArtifactId: artifact.id,
     filename: input.filename,
     rawText: extraction.rawText,
+    institutionHint: extraction.institutionHint ?? null,
+    rail: extraction.rail ?? null,
   };
 
   const externalId =
@@ -84,7 +86,7 @@ export async function ingestDocumentBytes(
 
   const event = upsertIngestedEvent(db, {
     source: input.source ?? "document",
-    kind: "bill",
+    kind: ingestKindFromClassifier(extraction.classifier),
     externalId,
     payload,
     confidence: extraction.confidence,
@@ -173,12 +175,21 @@ export function confirmBillIngest(
     notes?: string;
   },
 ): Obligation {
+  const existing = getIngestedEventById(db, eventId);
+  if (existing?.kind === "statement") {
+    throw new Error("statement is a connect hint — cannot confirm as a bill");
+  }
+
   const review = getBillReview(db, eventId);
   if (!review) throw new Error("bill review not found or already promoted");
 
   const payload = {
     ...review.payload,
-    ...overrides,
+    ...(overrides?.payee !== undefined ? { payee: overrides.payee } : {}),
+    ...(overrides?.amountUsd !== undefined ? { amountUsd: overrides.amountUsd } : {}),
+    ...(overrides?.dueDate !== undefined ? { dueDate: overrides.dueDate } : {}),
+    ...(overrides?.cadence !== undefined ? { cadence: overrides.cadence } : {}),
+    ...(overrides?.autopay !== undefined ? { autopay: overrides.autopay } : {}),
   };
 
   if (!payload.payee.trim()) throw new Error("payee required");
@@ -212,4 +223,13 @@ export function confirmBillIngest(
 
 function markEventReviewed(db: Database.Database, eventId: string): void {
   db.prepare("UPDATE ingested_event SET reviewed = 1 WHERE id = ?").run(eventId);
+}
+
+/** Map document classifier onto ingested_event.kind (no invoice kind in the table). */
+function ingestKindFromClassifier(
+  classifier: BillExtractPayload["classifier"],
+): "bill" | "statement" | "notice" {
+  if (classifier === "statement") return "statement";
+  if (classifier === "notice" || classifier === "other") return "notice";
+  return "bill";
 }

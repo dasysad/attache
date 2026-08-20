@@ -82,9 +82,15 @@ export {
   getAccount,
   updateManualAccount,
   deleteManualAccount,
+  parseFundingKind,
+  isLiquidKind,
+  isLiabilityKind,
   sumLiquidBalanceUsd,
+  sumLiabilityUsd,
   findAccountByPlaidId,
   upsertPlaidFundingAccount,
+  findAccountBySnapTradeId,
+  upsertSnapTradeFundingAccount,
 } from "./account.js";
 export {
   createObligation,
@@ -101,9 +107,34 @@ export {
   expandObligation,
 } from "./forecast.js";
 export {
+  computeNetWorth,
+  type NetWorthSnapshot,
+} from "./net-worth.js";
+export {
+  computeCashflow,
+  computeCashflowTrend,
+  defaultCashflowRange,
+  priorCashflowRange,
+  type CashflowBucket,
+  type CashflowReport,
+  type CashflowTrend,
+  type CashflowDayPoint,
+  type CashflowCategoryDelta,
+} from "./cashflow.js";
+export {
   isSetupComplete,
   markSetupComplete,
+  isSetupDiscoverDone,
+  markSetupDiscoverDone,
+  isSetupConnectHintsDone,
+  markSetupConnectHintsDone,
+  maybeMarkSetupComplete,
   setupWizardPath,
+  setupAllowedAppPaths,
+  setupOnboardNextHint,
+  setupWizardStepNumber,
+  SETUP_WIZARD_TOTAL,
+  SETUP_WIZARD_LABELS,
 } from "./setup.js";
 export {
   getVault,
@@ -141,12 +172,58 @@ export { plaidHostedLinkUrl } from "./net/loopback.js";
 export {
   listPlaidItems,
   listRecentTransactions,
+  listTransactions,
+  getBankTransaction,
+  setTransactionCategory,
   countPlaidLinkedAccounts,
+  listAccountsForPlaidItem,
+  type ListTransactionsFilter,
 } from "./plaid/store.js";
+export { unlinkPlaidItem, type UnlinkPlaidResult } from "./plaid/unlink.js";
+export {
+  mapPlaidAccountKind,
+  fundingKindFromPlaid,
+} from "./plaid/kind-map.js";
+export type {
+  SnapTradeIngestPort,
+  SnapTradeSyncSnapshot,
+  SnapTradeLinkedAccount,
+  SnapTradePosition,
+} from "./snaptrade/port.js";
+export { FakeSnapTradeAdapter } from "./snaptrade/fake-adapter.js";
+export { LiveSnapTradeAdapter } from "./snaptrade/live-adapter.js";
+export {
+  createSnapTradeAdapter,
+  isSnapTradeConfigured,
+} from "./snaptrade/create-adapter.js";
+export { loadSnapTradeConfig, type SnapTradeConfig } from "./snaptrade/config.js";
+export { listActivity, type ActivityFilter, type ActivityRow } from "./activity.js";
+export {
+  listSnapTradeConnections,
+  getSnapTradeConnection,
+  countSnapTradeLinkedAccounts,
+  createSnapTradeConnection,
+  snaptradeVaultRef,
+  listSnapTradePositions,
+  replaceSnapTradePositions,
+  type StoredSnapTradePosition,
+} from "./snaptrade/store.js";
+export {
+  connectSandboxSnapTrade,
+  connectLiveSnapTrade,
+  syncAllSnapTradeConnections,
+  syncSnapTradeConnection,
+  type SnapTradeSyncResult,
+} from "./snaptrade/sync.js";
+export {
+  unlinkSnapTradeConnection,
+  type UnlinkSnapTradeResult,
+} from "./snaptrade/unlink.js";
 export {
   FakeDocumentAdapter,
   createDocumentAdapter,
   parseTextBill,
+  parseTextDocument,
 } from "./ingest/fake-document-adapter.js";
 export { RemoteDocumentAdapter, ResilientDocumentAdapter } from "./ingest/remote-document-adapter.js";
 export {
@@ -171,6 +248,20 @@ export {
   assertWebhookIngestToken,
   type InboundEmailWebhookPayload,
 } from "./ingest/email-webhook.js";
+export {
+  ingestMailgunWebhook,
+  verifyMailgunSignature,
+  mailgunFormToPayload,
+  signMailgunWebhook,
+  mailgunSigningKeyFromEnv,
+  isMailgunIngressConfigured,
+  MailgunWebhookError,
+} from "./ingest/mailgun.js";
+export {
+  hostedIngressStatus,
+  HOSTED_INGRESS_HONESTY,
+  type HostedIngressStatus,
+} from "./ingest/ingress-status.js";
 export type { EmailIngestPort, InboundEmailMessage } from "./ingest/email-port.js";
 export {
   ingestDocumentBytes,
@@ -184,6 +275,48 @@ export {
   type EmailIngestResult,
 } from "./ingest/bill.js";
 export {
+  discoverMailCandidates,
+  listDiscoverCandidates,
+  listUnsatisfiedConnectHints,
+  countUnconfirmedAssetHints,
+  formatDiscoverMessage,
+  discoverNextCommands,
+  unsatisfiedConnectHints,
+  clampDiscoverBounds,
+  DiscoverError,
+  DISCOVER_DEFAULT_LOOKBACK_DAYS,
+  DISCOVER_DEFAULT_LIMIT,
+  DISCOVER_MAX_LOOKBACK_DAYS,
+  DISCOVER_MAX_LIMIT,
+  type DiscoverAction,
+  type DiscoverCandidate,
+  type DiscoverCandidateKind,
+  type DiscoverOptions,
+  type DiscoverResult,
+  type DiscoverNextCommand,
+  type LinkedInstitutions,
+} from "./ingest/discover.js";
+export {
+  inferAssetHint,
+  parseHouseholdAssetKind,
+  HOUSEHOLD_ASSET_KINDS,
+  type AssetHint,
+  type HouseholdAssetKind,
+} from "./ingest/asset-hint.js";
+export {
+  listHouseholdAssets,
+  createHouseholdAsset,
+  confirmAssetHint,
+  deleteHouseholdAsset,
+  getHouseholdAssetByEventId,
+  type HouseholdAsset,
+} from "./household-asset.js";
+export {
+  listHouseholdEntities,
+  type HouseholdEntity,
+  type HouseholdEntityKind,
+} from "./household-entity.js";
+export {
   getOrCreateIngestToken,
   ingestEmailAddress,
   parseIngestTokenFromAddress,
@@ -195,12 +328,17 @@ export {
   listImapAccounts,
   getImapAccount,
   imapVaultRef,
+  markImapAccountError,
+  clearImapAccountError,
+  unlinkImapAccount,
+  type UnlinkImapResult,
 } from "./imap/store.js";
 export { FakeImapAdapter, createImapAdapter } from "./imap/fake-adapter.js";
 export { LiveImapAdapter } from "./imap/live-adapter.js";
 export type { ImapIngestPort, ImapFetchResult, ImapFetchedMessage } from "./imap/port.js";
 export { pollImapIngest, type ImapPollResult } from "./imap/sync.js";
-export { isLikelyBillEmail } from "./imap/filter.js";
+export type { MailAccountPollOutcome } from "./gmail/sync.js";
+export { isLikelyBillEmail, isLikelyMarketingEmail } from "./imap/filter.js";
 export {
   buildGoogleAuthUrl,
   getGoogleOAuthConfig,
@@ -216,10 +354,15 @@ export {
   listGmailAccounts,
   getGmailAccount,
   gmailVaultRef,
+  markGmailAccountError,
+  clearGmailAccountError,
+  clearGmailHistoryId,
+  unlinkGmailAccount,
+  type UnlinkGmailResult,
 } from "./gmail/store.js";
 export { FakeGmailAdapter, createGmailAdapter } from "./gmail/fake-adapter.js";
 export { LiveGmailAdapter } from "./gmail/live-adapter.js";
-export type { GmailIngestPort, GmailFetchResult, GmailFetchedMessage } from "./gmail/port.js";
+export type { GmailIngestPort, GmailFetchResult, GmailFetchedMessage, GmailFetchOptions } from "./gmail/port.js";
 export { pollGmailIngest, type GmailPollResult } from "./gmail/sync.js";
 export {
   connectGmailViaLoopback,
@@ -231,6 +374,20 @@ export {
   type GmailLoopbackConnectResult,
 } from "./gmail/loopback-connect.js";
 export { getRunwaySnapshot, type RunwaySnapshot } from "./agent/runway.js";
+export {
+  ACCOUNT_KIND_LABEL,
+  ACCOUNT_KIND_ORDER,
+  buildAttention,
+  collectAttention,
+  commandCenterTotals,
+  groupAccountsByKind,
+  sumBrokerageUsd,
+  type AccountKindGroup,
+  type AttentionInput,
+  type AttentionItem,
+  type AttentionSeverity,
+  type CommandCenterTotals,
+} from "./command-center.js";
 export {
   listObligationsForAgent,
   type AgentObligationRow,
@@ -249,6 +406,38 @@ export {
   approveTransferProposal,
   rejectTransferProposal,
 } from "./agent/transfer-queue.js";
+export {
+  createTransferRule,
+  getTransferRule,
+  listTransferRules,
+  disableTransferRule,
+  listTransferRuleRuns,
+  transferRulePeriodKey,
+  transferRuleIdempotencyKey,
+} from "./agent/transfer-rule-store.js";
+export {
+  evaluateTransferRules,
+  type EvaluateTransferRulesOptions,
+  type EvaluateTransferRulesResult,
+} from "./agent/transfer-rules.js";
+export type {
+  TransferRule,
+  TransferRuleTrigger,
+  TransferRuleAction,
+  TransferRulePolicy,
+  TransferRuleAutonomy,
+  TransferRuleRun,
+  TransferRuleRunOutcome,
+  CreateTransferRuleInput,
+} from "./agent/transfer-rule-types.js";
+export {
+  transferHonesty,
+  transferHonestyWarning,
+  transferApprovalMessage,
+  TRANSFER_HONESTY,
+  type TransferHonesty,
+  type TransferExecutionMode,
+} from "./agent/transfer-honesty.js";
 export type {
   TransferProposalRecord,
   TransferProposalStatus,
@@ -259,9 +448,40 @@ export type {
 export type { LedgerPort } from "./ledger/port.js";
 export {
   SqliteLedgerAdapter,
+} from "./ledger/sqlite-adapter.js";
+export {
   getLedger,
   setLedgerForTests,
-} from "./ledger/sqlite-adapter.js";
+  createLedgerFromEnv,
+} from "./ledger/factory.js";
+export { TigerBeetleLedgerAdapter } from "./ledger/tb-adapter.js";
+export { FakeTigerBeetleClient } from "./ledger/fake-client.js";
+export {
+  ledgerBackendFromEnv,
+  tigerbeetleConfigFromEnv,
+  type LedgerBackend,
+} from "./ledger/config.js";
+export { ledgerStatus, type LedgerStatus } from "./ledger/status.js";
+export {
+  achBackendFromEnv,
+  isAchEnabled,
+  type AchBackend,
+} from "./ach/config.js";
+export { getAch, setAchForTests, createAchAdapter } from "./ach/create-adapter.js";
+export { FakeAchAdapter } from "./ach/fake-adapter.js";
+export { LivePlaidAchAdapter } from "./ach/live-adapter.js";
+export { achStatus, type AchStatus } from "./ach/status.js";
+export {
+  submitAch,
+  simulateAchPosted,
+  syncAchTransfers,
+} from "./ach/submit.js";
+export {
+  getAchTransferByProposal,
+  listAchTransfers,
+  type AchTransferRecord,
+} from "./ach/store.js";
+export type { AchPort, AchRailTransfer } from "./ach/port.js";
 export {
   InsufficientFundsError,
   LedgerInvariantError,
@@ -292,6 +512,31 @@ export {
   savePushSubscription,
   listPushSubscriptions,
 } from "./notify/store.js";
+export {
+  registerPushDevice,
+  listPushDevices,
+  getPushDevice,
+  unlinkPushDevice,
+  parsePushDevicePlatform,
+  type PushDevice,
+  type PushDevicePlatform,
+  type RegisterPushDeviceInput,
+} from "./notify/device.js";
+export { fcmBackendFromEnv, isFcmEnabled, type FcmBackend } from "./fcm/config.js";
+export { getFcm, setFcmForTests, createFcmAdapter } from "./fcm/create-adapter.js";
+export { FakeFcmAdapter } from "./fcm/fake-adapter.js";
+export { LiveFcmAdapter } from "./fcm/live-adapter.js";
+export { fcmStatus, type FcmStatus } from "./fcm/status.js";
+export { deliverFcmForNotification } from "./fcm/deliver.js";
+export type { FcmPort, FcmPayload, FcmSendResult, FcmMode } from "./fcm/port.js";
+export { listHighValueTargets, type HighValueTarget, type HighValueKind } from "./credentials/targets.js";
+export { checkCredentialHygiene, type CredentialHygieneResult, type CredentialBreachHit } from "./credentials/check.js";
+export { credentialAssist, generateSuggestedPassword, resolveAssistTarget, CREDENTIAL_ASSIST_HONESTY, type CredentialAssistInput, type CredentialAssistResult } from "./credentials/assist.js";
+export { changePasswordUrlForEmail, changePasswordUrlForName } from "./credentials/change-password-url.js";
+export { getHibp, setHibpForTests, createHibpAdapter, hibpApiKeyFromEnv } from "./credentials/create-adapter.js";
+export { FakeHibpAdapter, SANDBOX_HIBP_EMAIL } from "./credentials/fake-adapter.js";
+export { LiveHibpAdapter } from "./credentials/live-adapter.js";
+export type { HibpPort, HibpBreach, HibpMode } from "./credentials/hibp-port.js";
 export type {
   Notification,
   NotificationSeverity,
@@ -301,6 +546,11 @@ export type {
   PushSubscriptionRecord,
   PushSubscriptionInput,
 } from "./notify/types.js";
+export {
+  LIQUID_ACCOUNT_KINDS,
+  LIABILITY_ACCOUNT_KINDS,
+  FUNDING_ACCOUNT_KINDS,
+} from "./domain.js";
 export type {
   Provenance,
   FundingAccount,
@@ -323,4 +573,5 @@ export type {
   DocumentArtifact,
   ImapAccount,
   GmailAccount,
+  SnapTradeConnection,
 } from "./domain.js";

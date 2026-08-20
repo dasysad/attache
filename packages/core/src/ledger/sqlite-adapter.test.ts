@@ -31,14 +31,14 @@ describe("SqliteLedgerAdapter", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it("bootstraps opening balance from funding_account.balance_usd", () => {
-    expect(ledger.getBalanceUsd(db, tenantId, checkingId)).toBe(5000);
-    const history = ledger.getAccountHistory(db, tenantId, checkingId);
+  it("bootstraps opening balance from funding_account.balance_usd", async () => {
+    expect(await ledger.getBalanceUsd(db, tenantId, checkingId)).toBe(5000);
+    const history = await ledger.getAccountHistory(db, tenantId, checkingId);
     expect(history.some((h) => h.idempotencyKey === `opening:${checkingId}`)).toBe(true);
   });
 
-  it("posts a balanced internal transfer and syncs projections", () => {
-    const result = ledger.postTransfer(db, {
+  it("posts a balanced internal transfer and syncs projections", async () => {
+    const result = await ledger.postTransfer(db, {
       tenantId,
       idempotencyKey: "test:internal-1",
       fromFundingAccountId: checkingId,
@@ -61,7 +61,7 @@ describe("SqliteLedgerAdapter", () => {
     expect(accounts.find((a) => a.id === savingsId)!.balanceUsd).toBe(10750);
   });
 
-  it("is idempotent — reposting the same key does not double-debit", () => {
+  it("is idempotent — reposting the same key does not double-debit", async () => {
     const input = {
       tenantId,
       idempotencyKey: "test:idempotent",
@@ -69,33 +69,33 @@ describe("SqliteLedgerAdapter", () => {
       toFundingAccountId: savingsId,
       amountUsd: 100,
     };
-    const first = ledger.postTransfer(db, input);
-    const second = ledger.postTransfer(db, input);
+    const first = await ledger.postTransfer(db, input);
+    const second = await ledger.postTransfer(db, input);
     expect(second.created).toBe(false);
     expect(second.transfer.id).toBe(first.transfer.id);
-    expect(ledger.getBalanceUsd(db, tenantId, checkingId)).toBe(4900);
+    expect(await ledger.getBalanceUsd(db, tenantId, checkingId)).toBe(4900);
   });
 
-  it("throws InsufficientFundsError when amount exceeds balance", () => {
-    expect(() =>
+  it("throws InsufficientFundsError when amount exceeds balance", async () => {
+    await expect(
       ledger.postTransfer(db, {
         tenantId,
         idempotencyKey: "test:insufficient",
         fromFundingAccountId: checkingId,
         amountUsd: 999_999,
       }),
-    ).toThrow(InsufficientFundsError);
+    ).rejects.toThrow(InsufficientFundsError);
   });
 
-  it("posts outbound transfer to the external system account", () => {
-    ledger.postTransfer(db, {
+  it("posts outbound transfer to the external system account", async () => {
+    await ledger.postTransfer(db, {
       tenantId,
       idempotencyKey: "test:outbound",
       fromFundingAccountId: checkingId,
       amountUsd: 200,
       memo: "external payment",
     });
-    expect(ledger.getBalanceUsd(db, tenantId, checkingId)).toBe(4800);
+    expect(await ledger.getBalanceUsd(db, tenantId, checkingId)).toBe(4800);
 
     const external = db
       .prepare(

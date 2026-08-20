@@ -2,8 +2,9 @@
 
 Area: finance / persistence
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-06-22
+- **Amended:** 2026-08-15 (P1: `tigerbeetle-node` in-process; Litestar sidecar deferred)
 - **Deciders:** founder
 - **Related:** planning brief (local-first attache), `attache-python/src/models.py`,
   Starflow (transfer rules, HITL approval DAGs), Spacecraft (agent MCP tools)
@@ -65,14 +66,14 @@ and transfers only**. Everything else stays in SQLite / sync layers.
        │                              │
 ┌──────▼──────────┐          ┌────────▼────────────────────────┐
 │ SQLite          │          │ LedgerPort                       │
-│ obligations,    │          │  └─ TigerBeetleLedgerAdapter     │
-│ calendar,       │          │       (Python service, Litestar)   │
-│ tenant graph,   │          └────────┬────────────────────────┘
-│ bank tx cache   │                   │
-└─────────────────┘          ┌────────▼────────┐
+│ obligations,    │          │  ├─ SqliteLedgerAdapter (default)│
+│ calendar,       │          │  └─ TigerBeetleLedgerAdapter     │
+│ tenant graph,   │          │       (tigerbeetle-node, opt-in) │
+│ bank tx cache   │          └────────┬────────────────────────┘
+└─────────────────┘                   │
+                             ┌────────▼────────┐
                              │ TigerBeetle      │
-                             │ (local or Hetzner│
-                             │  single-node v1) │
+                             │ (local replica)  │
                              └─────────────────┘
 ```
 
@@ -148,17 +149,19 @@ carries encrypted SQLite metadata and ledger **export snapshots** for
 disaster recovery; the ledger replica on each device is a consistency
 problem we solve in a later ADR (likely: one primary writer per tenant).
 
-### Python placement
+### Client placement (amended 2026-08-15)
 
-The TigerBeetle client is **Python-native** (`tigerbeetle` pip package). The
-ledger service lives in `attache-python` as a Litestar app:
+P1 uses **`tigerbeetle-node` in-process** behind `LedgerPort`. SQLite remains
+the default (`ATTACHE_LEDGER` unset). Opt-in: `ATTACHE_LEDGER=tigerbeetle` plus
+a local replica (`ATTACHE_TB_ADDRESS`, default `3000`).
 
-- `POST /ledger/accounts`
-- `POST /ledger/transfers`
-- `POST /ledger/pending`
-- `GET /ledger/balances/{account_id}`
+The original Litestar sidecar is **deferred**. Python is reserved for AI/ML
+(user convention); Attache core is TypeScript, and the Node client is
+first-class. A dedicated ledger HTTP service can return if we ever split the
+replica onto another host without embedding the client.
 
-TypeScript core calls this service; it does not embed TigerBeetle directly.
+HITL pending stays the SQLite proposal queue (P0). TB two-phase
+`PendingTransfer` is unused until ACH (BL-12).
 
 ## Alternatives considered
 
@@ -208,8 +211,8 @@ posting** for the rules + HITL product shape.
 
 | Phase | Deliverable |
 |-------|-------------|
-| **P0** | `LedgerPort` ABC + fake adapter + unit tests (idempotency, pending flow) |
-| **P1** | `TigerBeetleLedgerAdapter` + Litestar routes; local single-node bootstrap |
+| **P0** | `LedgerPort` + SQLite adapter + unit tests (idempotency, opening, funds) — **done** |
+| **P1** | `TigerBeetleLedgerAdapter` + fake client tests + CLI/MCP `ledger status`; local replica opt-in — **BL-11** |
 | **P2** | `ledger_account_map` in SQLite; sync job from bank adapters → reconciliation transfers |
 | **P3** | Starflow steps: `ledger.post_pending`, `ledger.post`, `ledger.void` |
 | **P4** | HITL approval queue wired to pending transfers |

@@ -13,10 +13,12 @@ Agents propose transfers; humans approve or reject in a persisted queue. Manual 
 | `createTransferProposal` → dry-run + enqueue | ✅ |
 | Approve / reject with audit fields | ✅ |
 | Execute on approve (manual accounts only) | ✅ |
+| Transfer honesty copy (Plaid ≠ ACH) | ✅ (slice 5) |
 | Web queue `/app/transfers` | ✅ |
 | `hitl_transfer` notification | ✅ |
 | CLI `attache transfer *` | ✅ |
 | MCP `submit_transfer_proposal`, `list_transfer_proposals` | ✅ |
+| MCP `approve_transfer_proposal`, `reject_transfer_proposal` | ✅ (slice 2) |
 
 ## Flow
 
@@ -49,10 +51,12 @@ open http://localhost:8780/app/transfers
 | `propose_transfer` | Dry-run simulation only |
 | `submit_transfer_proposal` | Enqueue for HITL |
 | `list_transfer_proposals` | Read queue |
+| `approve_transfer_proposal` | HITL approve (+ ledger execute for manual) |
+| `reject_transfer_proposal` | HITL reject |
 
-Approve/reject via web or CLI (human channel).
+Also: `plaid_status`, `plaid_sync`, `plaid_connect_sandbox` — see [vs-agent-hitl-parity.md](./vs-agent-hitl-parity.md).
 
 ## Next
 
-- **LedgerPort P0** — TigerBeetle-backed execution
+- **Transfer honesty** (slice 5) — UI/MCP copy for Plaid ≠ ACH
 - **VS-7** — mesh (when lib available)

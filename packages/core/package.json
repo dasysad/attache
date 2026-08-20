@@ -20,6 +20,8 @@
     "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.11.1",
     "imapflow": "^1.0.198",
     "plaid": "^43.0.0",
+    "snaptrade-typescript-sdk": "^12.1.2",
+    "tigerbeetle-node": "0.17.9",
     "zod": "^3.24.2"
   },
   "devDependencies": {

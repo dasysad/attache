@@ -7,7 +7,8 @@ const META_KEY = "ingest_token";
 
 /**
  * Per-tenant email ingress token stored in app_meta (VS-4).
- * Forward bills to bills+{token}@ingest.attache.app (webhook or maildrop in VS-4.1).
+ * Display address bills+{token}@ingest.attache.app. Live hosted delivery is
+ * BYO Mailgun (BL-8) when ATTACHE_MAILGUN_SIGNING_KEY is set — not Attache SMTP.
  */
 export function getOrCreateIngestToken(db: Database.Database): string {
   const existing = db

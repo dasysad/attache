@@ -47,7 +47,7 @@ describe("VS-5.1 transfer queue", () => {
     db.close();
   });
 
-  it("rejects approval when blockers present", () => {
+  it("rejects approval when blockers present", async () => {
     const { db } = setup();
     const checking = listAccounts(db)[0]!;
     const sim = proposeTransfer(db, {
@@ -60,11 +60,11 @@ describe("VS-5.1 transfer queue", () => {
       fromAccountId: checking.id,
       amountUsd: 999_999,
     });
-    expect(() => approveTransferProposal(db, record.id)).toThrow(/blockers/i);
+    await expect(approveTransferProposal(db, record.id)).rejects.toThrow(/blockers/i);
     db.close();
   });
 
-  it("executes manual internal transfer on approve via ledger", () => {
+  it("executes manual internal transfer on approve via ledger", async () => {
     const { db } = setup();
     const checking = listAccounts(db).find((a) => a.name === "Checking")!;
     const savings = listAccounts(db).find((a) => a.name === "Savings")!;
@@ -73,7 +73,7 @@ describe("VS-5.1 transfer queue", () => {
       toAccountId: savings.id,
       amountUsd: 750,
     });
-    const approved = approveTransferProposal(db, record.id, "ok");
+    const approved = await approveTransferProposal(db, record.id, "ok");
     expect(approved.status).toBe("executed");
 
     const after = listAccounts(db);
@@ -87,7 +87,7 @@ describe("VS-5.1 transfer queue", () => {
     db.close();
   });
 
-  it("approve is idempotent at the ledger layer on retry", () => {
+  it("approve is idempotent at the ledger layer on retry", async () => {
     const { db } = setup();
     const checking = listAccounts(db).find((a) => a.name === "Checking")!;
     const savings = listAccounts(db).find((a) => a.name === "Savings")!;
@@ -96,8 +96,8 @@ describe("VS-5.1 transfer queue", () => {
       toAccountId: savings.id,
       amountUsd: 100,
     });
-    approveTransferProposal(db, record.id);
-    expect(() => approveTransferProposal(db, record.id)).toThrow(/executed/i);
+    await approveTransferProposal(db, record.id);
+    await expect(approveTransferProposal(db, record.id)).rejects.toThrow(/executed/i);
     expect(listAccounts(db).find((a) => a.id === checking.id)!.balanceUsd).toBe(4900);
     db.close();
   });

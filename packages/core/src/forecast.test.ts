@@ -160,6 +160,45 @@ describe("computeSolvencyForecast", () => {
     expect(f.series[0]!.balanceUsd).toBeLessThan(0);
   });
 
+  it("does not treat credit balances as liquid runway (negative)", () => {
+    const accounts = [
+      {
+        id: "1",
+        tenantId: "t",
+        name: "Checking",
+        institution: null,
+        mask: null,
+        kind: "checking" as const,
+        balanceUsd: 100,
+        provenance: "native" as const,
+        syncStatus: "manual" as const,
+        plaidAccountId: null,
+        plaidItemId: null,
+        lastSyncedAt: null,
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: "2",
+        tenantId: "t",
+        name: "Visa",
+        institution: null,
+        mask: null,
+        kind: "credit" as const,
+        balanceUsd: 900,
+        provenance: "native" as const,
+        syncStatus: "manual" as const,
+        plaidAccountId: null,
+        plaidItemId: null,
+        lastSyncedAt: null,
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    const f = computeSolvencyForecast(accounts, [], 30);
+    expect(f.liquidBalanceUsd).toBe(100);
+  });
+
   it("expands monthly cadence", () => {
     const ob = {
       id: "o1",

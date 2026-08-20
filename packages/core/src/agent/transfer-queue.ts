@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
-import { getAccount } from "../account.js";
-import { getLedger } from "../ledger/sqlite-adapter.js";
+import { getLedger } from "../ledger/factory.js";
 import { InsufficientFundsError } from "../ledger/errors.js";
 import { getTenant, isOnboarded } from "../tenant.js";
 import { proposeTransfer, type TransferProposalInput } from "./transfer.js";
+import { transferHonesty } from "./transfer-honesty.js";
+import { getAch } from "../ach/create-adapter.js";
+import { submitAch } from "../ach/submit.js";
 import type {
   CreateTransferProposalInput,
   ListTransferProposalsOptions,
@@ -137,11 +139,11 @@ export function countPendingTransferProposals(db: Database.Database): number {
  * Approve a pending proposal. Manual accounts get local balance updates (dogfood).
  * Plaid-linked legs record approval only — no fake bank movement.
  */
-export function approveTransferProposal(
+export async function approveTransferProposal(
   db: Database.Database,
   id: string,
   reviewNote?: string,
-): TransferProposalRecord {
+): Promise<TransferProposalRecord> {
   const proposal = getTransferProposal(db, id);
   if (!proposal) throw new Error("proposal not found");
   if (proposal.status !== "pending") {
@@ -154,8 +156,17 @@ export function approveTransferProposal(
   const now = new Date().toISOString();
   let status: TransferProposalStatus = "approved";
 
-  if (canExecuteOnManualAccounts(db, proposal)) {
-    executeViaLedger(db, proposal);
+  // BL-12: Plaid A2A + ACH rail → submit, settle later. Slice 5: manual → ledger.
+  const honesty = transferHonesty(db, proposal.fromAccountId, proposal.toAccountId);
+  if (honesty.willSubmitAch) {
+    const ach = getAch();
+    if (!ach) {
+      throw new Error("ACH rail is off — set ATTACHE_ACH=sandbox or ATTACHE_ACH=plaid");
+    }
+    await submitAch(db, proposal, ach);
+    status = "ach_pending";
+  } else if (await canExecuteOnManualAccounts(db, proposal)) {
+    await executeViaLedger(db, proposal);
     status = "executed";
   }
 
@@ -189,37 +200,28 @@ export function rejectTransferProposal(
   return getTransferProposal(db, id)!;
 }
 
-function canExecuteOnManualAccounts(
+async function canExecuteOnManualAccounts(
   db: Database.Database,
   proposal: TransferProposalRecord,
-): boolean {
-  const from = getAccount(db, proposal.fromAccountId);
-  if (!from || from.plaidAccountId || from.syncStatus !== "manual") return false;
-  if (proposal.toAccountId) {
-    const to = getAccount(db, proposal.toAccountId);
-    if (!to || to.plaidAccountId || to.syncStatus !== "manual") return false;
-  }
+): Promise<boolean> {
+  const honesty = transferHonesty(db, proposal.fromAccountId, proposal.toAccountId);
+  if (!honesty.willExecute) return false;
   const ledger = getLedger();
-  const tenantId = proposal.tenantId;
-  try {
-    const available = ledger.getBalanceUsd(db, tenantId, proposal.fromAccountId);
-    return available >= proposal.amountUsd;
-  } catch {
-    return false;
-  }
+  const available = await ledger.getBalanceUsd(db, proposal.tenantId, proposal.fromAccountId);
+  return available >= proposal.amountUsd;
 }
 
 /**
- * Post an approved proposal through LedgerPort (ADR-001 P0).
+ * Post an approved proposal through LedgerPort (ADR-001).
  * Idempotent on `proposal:{id}` so approval retries never double-post.
  */
-function executeViaLedger(
+async function executeViaLedger(
   db: Database.Database,
   proposal: TransferProposalRecord,
-): void {
+): Promise<void> {
   const ledger = getLedger();
   try {
-    const result = ledger.postTransfer(db, {
+    const result = await ledger.postTransfer(db, {
       tenantId: proposal.tenantId,
       idempotencyKey: `proposal:${proposal.id}`,
       fromFundingAccountId: proposal.fromAccountId,

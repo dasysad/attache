@@ -54,7 +54,7 @@ pnpm attache ingest poll-imap
 
 - **VS-4.3 Gmail OAuth** — see [ADR-008](../adr/008-gmail-oauth-local-vault.md)
 - VS-5 Agent MCP tools
-- Hosted ingress — still deferred (ADR-007 Phase B)
+- Hosted ingress — BYO Mailgun P0 shipped ([vs-hosted-mail-ingress.md](./vs-hosted-mail-ingress.md)); Attache SMTP still out
 
 ## References
 

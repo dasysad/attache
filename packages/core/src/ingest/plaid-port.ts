@@ -1,4 +1,5 @@
 import type {
+  FundingAccountKind,
   PlaidBalancePayload,
   PlaidTransactionPayload,
 } from "../domain.js";
@@ -9,7 +10,7 @@ export interface PlaidLinkedAccount {
   name: string;
   officialName: string | null;
   mask: string | null;
-  kind: "checking" | "savings" | "other";
+  kind: FundingAccountKind | "other";
   balanceUsd: number;
 }
 

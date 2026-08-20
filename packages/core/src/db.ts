@@ -258,6 +258,19 @@ function migrate(db: Database.Database): void {
       created_at TEXT NOT NULL
     );
 
+    -- BL-6 P0: Android FCM companion (spec POST /devices/register).
+    -- Tokens only — no notification body cache. Kotlin app is a follow-on.
+    CREATE TABLE IF NOT EXISTS push_device (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      platform TEXT NOT NULL,
+      fcm_token TEXT NOT NULL,
+      label TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(tenant_id, fcm_token)
+    );
+
     CREATE TABLE IF NOT EXISTS transfer_proposal (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL REFERENCES tenant(id),
@@ -313,4 +326,112 @@ function migrate(db: Database.Database): void {
   ensureColumn(db, "transfer_proposal", "ledger_transfer_id", "TEXT");
   ensureColumn(db, "plaid_item", "error_code", "TEXT");
   ensureColumn(db, "plaid_item", "error_message", "TEXT");
+  ensureColumn(db, "gmail_account", "last_error", "TEXT");
+  ensureColumn(db, "imap_account", "last_error", "TEXT");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS snaptrade_connection (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      external_user_id TEXT NOT NULL,
+      label TEXT NOT NULL,
+      brokerage_name TEXT,
+      vault_credential_ref TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      last_sync_at TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(tenant_id, external_user_id)
+    );
+  `);
+
+  ensureColumn(db, "funding_account", "snaptrade_account_id", "TEXT");
+  ensureColumn(
+    db,
+    "funding_account",
+    "snaptrade_connection_id",
+    "TEXT REFERENCES snaptrade_connection(id)",
+  );
+
+  // P1: persist last SnapTrade snapshot so CLI/MCP/web can list positions
+  // without re-calling the adapter (read-only holdings, not a blotter).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS snaptrade_position (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      connection_id TEXT NOT NULL REFERENCES snaptrade_connection(id),
+      snaptrade_account_id TEXT,
+      symbol TEXT NOT NULL,
+      units REAL NOT NULL,
+      price_usd REAL NOT NULL,
+      market_value_usd REAL NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ach_transfer (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      proposal_id TEXT NOT NULL UNIQUE REFERENCES transfer_proposal(id),
+      provider TEXT NOT NULL,
+      debit_transfer_id TEXT NOT NULL,
+      credit_transfer_id TEXT NOT NULL,
+      from_account_id TEXT NOT NULL REFERENCES funding_account(id),
+      to_account_id TEXT NOT NULL REFERENCES funding_account(id),
+      amount_usd REAL NOT NULL CHECK(amount_usd > 0),
+      status TEXT NOT NULL,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  ensureColumn(db, "transfer_proposal", "ach_transfer_id", "TEXT");
+
+  // ADR-015 P4: thin home/vehicle register. Not a DMS — no files, optional estimate.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS household_asset (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      kind TEXT NOT NULL,
+      label TEXT NOT NULL,
+      notes TEXT,
+      estimated_usd REAL,
+      ingested_event_id TEXT REFERENCES ingested_event(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(tenant_id, ingested_event_id)
+    );
+  `);
+
+  // ADR-017 / BL-12: typed transfer policies. Source of truth is local SQLite —
+  // Starflow orchestrates evaluate later (BL-13); Decider is not the rule store.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transfer_rule (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      trigger_json TEXT NOT NULL,
+      action_json TEXT NOT NULL,
+      policy_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS transfer_rule_run (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      rule_id TEXT NOT NULL REFERENCES transfer_rule(id),
+      period_key TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      outcome TEXT NOT NULL,
+      proposal_id TEXT REFERENCES transfer_proposal(id),
+      amount_usd REAL,
+      message TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(rule_id, period_key)
+    );
+  `);
 }

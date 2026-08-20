@@ -15,6 +15,7 @@ export const story: Story = {
           name="Checking"
           mask="···4821"
           institution="Chase"
+          kind="checking"
           .balance=${3412.18}
           syncStatus="fresh"
           syncLabel="2h ago via Plaid"
@@ -38,7 +39,28 @@ export const story: Story = {
         <att-account-row
           name="Cash envelope"
           institution="Manual"
+          kind="cash"
           .balance=${400}
+          syncStatus="manual"
+        ></att-account-row>
+      </div>
+    `)}
+    ${section("Liabilities", html`
+      <div style="max-width:480px;display:flex;flex-direction:column;gap:var(--att-space-2)">
+        <att-account-row
+          name="Sapphire Reserve"
+          mask="···1009"
+          institution="Chase"
+          kind="credit"
+          .balance=${2410.55}
+          syncStatus="fresh"
+          syncLabel="Plaid"
+        ></att-account-row>
+        <att-account-row
+          name="Mortgage"
+          institution="Manual"
+          kind="loan"
+          .balance=${312000}
           syncStatus="manual"
         ></att-account-row>
       </div>

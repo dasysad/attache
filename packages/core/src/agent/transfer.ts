@@ -4,6 +4,7 @@ import { listAccounts } from "../account.js";
 import { listObligations } from "../obligation.js";
 import { computeSolvencyForecast } from "../forecast.js";
 import { isOnboarded } from "../tenant.js";
+import { transferHonesty, transferHonestyWarning } from "./transfer-honesty.js";
 
 export interface TransferProposalInput {
   fromAccountId: string;
@@ -95,6 +96,10 @@ export function proposeTransfer(
       `After transfer, liquid balance ($${after.liquidBalanceUsd.toFixed(2)}) is below due-in-7d ($${after.dueIn7dUsd.toFixed(2)})`,
     );
   }
+
+  const honesty = transferHonesty(db, from.id, to?.id);
+  const honestyWarn = transferHonestyWarning(honesty);
+  if (honestyWarn) warnings.push(honestyWarn);
 
   const fromAfter = simAccounts.find((a) => a.id === from.id)!;
   const toAfter = to ? simAccounts.find((a) => a.id === to.id)! : null;

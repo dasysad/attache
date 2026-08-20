@@ -33,6 +33,7 @@ interface GmailRow {
   status: string;
   last_sync_at: string | null;
   history_id: string | null;
+  last_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +48,7 @@ function mapRow(row: GmailRow): GmailAccount {
     status: row.status as GmailAccount["status"],
     lastSyncAt: row.last_sync_at,
     historyId: row.history_id,
+    lastError: row.last_error ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -115,7 +117,8 @@ export function connectGmailAccount(
 
   if (existing) {
     db.prepare(
-      `UPDATE gmail_account SET label = ?, vault_credential_ref = ?, status = 'active', updated_at = ?
+      `UPDATE gmail_account SET label = ?, vault_credential_ref = ?, status = 'active',
+       last_error = NULL, updated_at = ?
        WHERE id = ?`,
     ).run(input.label?.trim() || existing.label, vaultRef, now, existing.id);
     return mapRow(
@@ -179,16 +182,73 @@ export function updateGmailHistoryId(
   const tenantId = requireTenant(db);
   const now = new Date().toISOString();
   db.prepare(
-    `UPDATE gmail_account SET last_sync_at = ?, history_id = COALESCE(?, history_id), updated_at = ?
+    `UPDATE gmail_account SET last_sync_at = ?, history_id = COALESCE(?, history_id),
+       status = 'active', last_error = NULL, updated_at = ?
      WHERE id = ? AND tenant_id = ?`,
   ).run(now, historyId, now, accountId, tenantId);
 }
 
-export function markGmailAccountError(db: Database.Database, accountId: string): void {
+/**
+ * Forget Gmail history cursor so the next poll re-runs first-sync.
+ * Why: sandbox discover-sandbox needs mixed fixtures even after a prior poll
+ *      left history_id = sandbox-done. Live OAuth must not call this.
+ */
+export function clearGmailHistoryId(db: Database.Database, accountId: string): void {
+  const tenantId = requireTenant(db);
+  const now = new Date().toISOString();
+  db.prepare(
+    `UPDATE gmail_account SET history_id = NULL, updated_at = ?
+     WHERE id = ? AND tenant_id = ?`,
+  ).run(now, accountId, tenantId);
+}
+
+/** Persist poll/auth failure for UI + agents (slice 4). */
+export function markGmailAccountError(
+  db: Database.Database,
+  accountId: string,
+  message = "poll failed",
+): void {
   const tenantId = requireTenant(db);
   db.prepare(
-    `UPDATE gmail_account SET status = 'error', updated_at = ? WHERE id = ? AND tenant_id = ?`,
+    `UPDATE gmail_account SET status = 'error', last_error = ?, updated_at = ?
+     WHERE id = ? AND tenant_id = ?`,
+  ).run(message.slice(0, 500), new Date().toISOString(), accountId, tenantId);
+}
+
+/** Clear error without reconnect — next poll will retry. */
+export function clearGmailAccountError(db: Database.Database, accountId: string): void {
+  const tenantId = requireTenant(db);
+  const acct = getGmailAccount(db, accountId);
+  if (!acct) throw new Error("gmail account not found");
+  db.prepare(
+    `UPDATE gmail_account SET status = 'active', last_error = NULL, updated_at = ?
+     WHERE id = ? AND tenant_id = ?`,
   ).run(new Date().toISOString(), accountId, tenantId);
+}
+
+export interface UnlinkGmailResult {
+  accountId: string;
+  email: string;
+  vaultCleared: boolean;
+}
+
+/** Remove Gmail link + vault tokens (slice 4). */
+export function unlinkGmailAccount(
+  db: Database.Database,
+  accountId: string,
+  vault: VaultPort,
+): UnlinkGmailResult {
+  const account = getGmailAccount(db, accountId);
+  if (!account) throw new Error("gmail account not found");
+  db.prepare(`DELETE FROM gmail_account WHERE id = ?`).run(accountId);
+  let vaultCleared = false;
+  try {
+    vault.delete(account.vaultCredentialRef);
+    vaultCleared = true;
+  } catch {
+    /* missing secret ok */
+  }
+  return { accountId: account.id, email: account.email, vaultCleared };
 }
 
 export function getGmailTokens(

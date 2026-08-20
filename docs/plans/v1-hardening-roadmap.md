@@ -47,8 +47,8 @@ with negative-space assertions, docs.
 
 - Define `LedgerPort` interface (ADR-001): `postTransfer`, `getBalance`,
   `getAccountHistory`.
-- **Fake in-memory + SQLite-backed adapter** with double-entry records; real
-  TigerBeetle adapter deferred to backlog (BL-11).
+- **Fake in-memory + SQLite-backed adapter** with double-entry records; TigerBeetle
+  opt-in via `ATTACHE_LEDGER=tigerbeetle` (BL-11, [plan](./vs-tigerbeetle-ledger.md)).
 - Rewire transfer approval to post through `LedgerPort` instead of tweaking
   `balance_usd`; keep a projection for fast reads.
 - Tests: balanced entries, insufficient funds, idempotency.
@@ -67,5 +67,6 @@ with negative-space assertions, docs.
 
 ## Out of scope (still backlog)
 
-Mesh (BL-1–4), merge wizard, premium/SnapTrade, Android reader, real ACH rails,
-TigerBeetle production adapter. See [backlog](../backlog.md).
+Mesh (BL-1–4), merge wizard, premium billing gate, Android reader,
+autonomous ACH rules (HITL ACH is BL-12 P0).
+See [backlog](../backlog.md).

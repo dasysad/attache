@@ -1,6 +1,6 @@
 # Credential hygiene — future scope (research)
 
-**Status:** research / deferred  
+**Status:** research (P0 wedge shipped — [vs-credential-hygiene.md](./vs-credential-hygiene.md), [ADR-016](../adr/016-credential-hygiene-not-a-password-manager.md))  
 **Date:** 2026-06-27  
 **Related:** [VS-0 + VS-1](./vs-0-vs-1.md), [Attache v1 PRD](../prd/attache-v1.md)
 

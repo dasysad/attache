@@ -1,7 +1,6 @@
 import type Database from "better-sqlite3";
 import {
   markEventPromoted,
-  parseTransactionPayload,
   upsertIngestedEvent,
 } from "../ingest/event.js";
 import type { PlaidIngestPort } from "../ingest/plaid-port.js";
@@ -24,6 +23,8 @@ export interface SyncResult {
   accountsUpdated: number;
   transactionsNew: number;
   transactionsSkipped: number;
+  /** Set when this item failed; other items may still have synced. */
+  error?: string;
 }
 
 /**
@@ -52,7 +53,7 @@ export async function connectSandboxPlaid(
 }
 
 /**
- * Connect a live Plaid item from a Link public_token (slice 3).
+ * Connect a live Plaid item from a Link public_token.
  * Agents obtain public_token via Link UI or sandbox Plaid Link tester.
  */
 export async function connectLivePlaid(
@@ -86,16 +87,32 @@ export async function createPlaidLinkToken(
   return adapter.createLinkToken(tenant.id, redirectUri);
 }
 
-/** Sync every active Plaid item for the current tenant. */
+/**
+ * Sync every active (or error) Plaid item. Per-item failures are captured on
+ * the result row instead of aborting the whole batch — agents/UI can show which
+ * links need re-auth.
+ */
 export async function syncAllPlaidItems(
   db: Database.Database,
   adapter: PlaidIngestPort,
   vault: VaultPort,
 ): Promise<SyncResult[]> {
-  const items = listPlaidItems(db).filter((i) => i.status === "active");
+  const items = listPlaidItems(db).filter(
+    (i) => i.status === "active" || i.status === "error",
+  );
   const results: SyncResult[] = [];
   for (const item of items) {
-    results.push(await syncPlaidItem(db, item.id, adapter, vault));
+    try {
+      results.push(await syncPlaidItem(db, item.id, adapter, vault));
+    } catch (e) {
+      results.push({
+        itemId: item.id,
+        accountsUpdated: 0,
+        transactionsNew: 0,
+        transactionsSkipped: 0,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return results;
 }

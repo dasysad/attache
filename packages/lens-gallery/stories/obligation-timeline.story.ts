@@ -23,7 +23,7 @@ export const story: Story = {
     `)}
     ${section("Wizard steps", html`
       <div style="max-width:480px">
-        <att-wizard-steps current="2" total="3"></att-wizard-steps>
+        <att-wizard-steps current="2"></att-wizard-steps>
       </div>
     `)}
   `,

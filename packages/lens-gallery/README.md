@@ -22,15 +22,15 @@ pnpm lens
 pnpm dev
 ```
 
-Open **http://localhost:7777**
+Open **http://localhost:7777** — switch **Household (dark)** vs **Daylight (light)** in the sidebar.
 
 ## Story groups
 
 | Group | Stories |
 |-------|---------|
-| **Tokens** | Color, Typography, Spacing & radius, Elevation |
-| **Primitives** | Button, Input, Card, Chip, Badge, Checkbox, Toggle, Select |
-| **Patterns** | Cost receipt |
+| **Tokens** | Color (dark + Daylight), Fonts, Typography, Spacing & radius, Borders, Elevation, Motion |
+| **Primitives** | Button, Input, Card, Chip, Badge, Checkbox, Toggle, Select, Account row, Transaction row, Position row, Wizard steps, … |
+| **Patterns** | Command center, Net worth, Cash flow, Ledger dashboard, Investments, Cost receipt |
 
 ## Adding stories
 
