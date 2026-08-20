@@ -140,6 +140,15 @@ async function settleAchToLedger(
   proposalId: string,
   achRow: AchTransferRecord,
 ): Promise<void> {
+  await settleAchToLedgerForProposal(db, proposalId, achRow);
+}
+
+/** Public settle used by sync + webhooks (idempotent on proposal:{id}). */
+export async function settleAchToLedgerForProposal(
+  db: Database.Database,
+  proposalId: string,
+  achRow: AchTransferRecord,
+): Promise<void> {
   const ledger = getLedger();
   try {
     const result = await ledger.postTransfer(db, {
@@ -165,7 +174,7 @@ async function settleAchToLedger(
   }
 }
 
-function markProposalAchFailed(
+export function markProposalAchFailed(
   db: Database.Database,
   proposalId: string,
   railStatus: string,

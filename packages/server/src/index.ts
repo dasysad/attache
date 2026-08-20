@@ -104,6 +104,9 @@ import {
   ingestMailgunWebhook,
   MailgunWebhookError,
   isMailgunIngressConfigured,
+  handleAchWebhook,
+  AchWebhookError,
+  achWebhookStatus,
   fcmStatus,
 } from "@attache/core";
 import {
@@ -1532,6 +1535,35 @@ app.post("/api/ingest/mailgun", async (c) => {
       return c.json({ error: e.message }, e.statusCode);
     }
     const msg = e instanceof Error ? e.message : "ingest failed";
+    return c.json({ error: msg }, 400);
+  } finally {
+    db.close();
+  }
+});
+
+/**
+ * ADR-013 P2: ACH Transfer events. Bearer ATTACHE_ACH_WEBHOOK_SECRET.
+ * Same settle path as `attache ach sync` when status is posted.
+ */
+app.post("/api/ach/webhook", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) {
+      return c.json({ error: "not onboarded" }, 503);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    const transfer = await handleAchWebhook(db, body, {
+      authorizationHeader: c.req.header("authorization") ?? undefined,
+    });
+    return c.json({ ok: true, transfer, ...achWebhookStatus() });
+  } catch (e) {
+    if (e instanceof AchWebhookError) {
+      return c.json({ error: e.message }, e.statusCode);
+    }
+    const msg = e instanceof Error ? e.message : "ach webhook failed";
     return c.json({ error: msg }, 400);
   } finally {
     db.close();

@@ -30,6 +30,11 @@ export interface TransferRulePolicy {
   maxPerRunUsd: number;
   maxPerMonthUsd: number;
   autonomy: TransferRuleAutonomy;
+  /**
+   * Optional CEL guard (Starflow-aligned). Evaluated after the trigger.
+   * False → skip without burning the monthly period slot.
+   */
+  whenCel?: string | null;
 }
 
 export interface TransferRule {
@@ -78,4 +83,6 @@ export interface CreateTransferRuleInput {
   /** balance_above only — defaults to fromAccountId when omitted. */
   triggerAccountId?: string;
   thresholdUsd?: number;
+  /** Optional CEL expression, e.g. `liquidBalanceUsd >= 1000.0 && runwayDays > 14`. */
+  whenCel?: string;
 }

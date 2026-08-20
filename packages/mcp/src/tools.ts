@@ -76,6 +76,10 @@ import {
   achStatus,
   simulateAchPosted,
   syncAchTransfers,
+  achWebhookStatus,
+  transferRulesScheduleStatus,
+  installTransferRulesSchedule,
+  uninstallTransferRulesSchedule,
   registerPushDevice,
   listPushDevices,
   unlinkPushDevice,
@@ -727,6 +731,12 @@ export function registerAttacheTools(server: McpServer): void {
       maxPerMonthUsd: z.number().positive().optional(),
       autonomy: z.enum(["proposal", "auto"]).optional(),
       thresholdUsd: z.number().nonnegative().optional(),
+      whenCel: z
+        .string()
+        .optional()
+        .describe(
+          "CEL guard, e.g. liquidBalanceUsd >= 1000.0 && runwayDays > 14. False skips without burning the month.",
+        ),
     },
     async (input) => withDb((db) => {
       if (!isOnboarded(db)) {
@@ -780,6 +790,54 @@ export function registerAttacheTools(server: McpServer): void {
         });
       }
     }),
+  );
+
+  server.tool(
+    "transfer_rules_schedule_status",
+    "Local launchd/cron status for daily transfer rules evaluate (06:00).",
+    {},
+    async () => jsonResult({ ok: true, ...transferRulesScheduleStatus() }),
+  );
+
+  server.tool(
+    "install_transfer_rules_schedule",
+    "Install daily 06:00 evaluate via launchd (macOS) or write a crontab line file (Linux).",
+    {
+      loadLaunchd: z
+        .boolean()
+        .optional()
+        .describe("macOS: call launchctl load (default true)"),
+    },
+    async ({ loadLaunchd }) => {
+      try {
+        const status = installTransferRulesSchedule({
+          loadLaunchd: loadLaunchd !== false,
+        });
+        return jsonResult({ ok: true, ...status });
+      } catch (e) {
+        return jsonResult({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+  );
+
+  server.tool(
+    "uninstall_transfer_rules_schedule",
+    "Remove the transfer rules launchd plist or crontab helper file.",
+    {},
+    async () => {
+      try {
+        const status = uninstallTransferRulesSchedule();
+        return jsonResult({ ok: true, ...status });
+      } catch (e) {
+        return jsonResult({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
   );
 
   server.tool(
@@ -956,6 +1014,13 @@ export function registerAttacheTools(server: McpServer): void {
         });
       }
     }),
+  );
+
+  server.tool(
+    "ach_webhook_status",
+    "Whether POST /api/ach/webhook is armed (ATTACHE_ACH_WEBHOOK_SECRET). Poll with sync_ach when off.",
+    {},
+    async () => jsonResult({ ok: true, ...achWebhookStatus() }),
   );
 
   server.tool(

@@ -173,6 +173,50 @@ describe("ADR-017 transfer rules", () => {
     expect(result.runs).toEqual([]);
     db.close();
   });
+
+  it("CEL when false skips without burning the month", async () => {
+    const { db, checking, savings } = setup();
+    createTransferRule(db, {
+      name: "Guarded",
+      fromAccountId: checking.id,
+      toAccountId: savings.id,
+      amountUsd: 50,
+      whenCel: "liquidBalanceUsd < 100.0",
+    });
+    const miss = await evaluateTransferRules(db, {
+      now: new Date("2026-10-01T00:00:00Z"),
+    });
+    expect(miss.runs[0]!.outcome).toBe("skipped");
+    expect(miss.runs[0]!.message).toMatch(/CEL when/);
+    expect(listTransferRuleRuns(db)).toHaveLength(0);
+
+    createTransferRule(db, {
+      name: "Guarded ok",
+      fromAccountId: checking.id,
+      toAccountId: savings.id,
+      amountUsd: 25,
+      whenCel: "liquidBalanceUsd >= 1000.0 && runwayDays > 7",
+    });
+    const hit = await evaluateTransferRules(db, {
+      now: new Date("2026-10-01T00:00:00Z"),
+    });
+    expect(hit.runs.some((r) => r.outcome === "proposed")).toBe(true);
+    db.close();
+  });
+
+  it("rejects bad whenCel at create (negative)", () => {
+    const { db, checking, savings } = setup();
+    expect(() =>
+      createTransferRule(db, {
+        name: "bad cel",
+        fromAccountId: checking.id,
+        toAccountId: savings.id,
+        amountUsd: 10,
+        whenCel: "x === 1",
+      }),
+    ).toThrow(/==/);
+    db.close();
+  });
 });
 
 function getAccountBalance(db: import("better-sqlite3").Database, id: string): number {

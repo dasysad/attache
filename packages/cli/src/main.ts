@@ -86,6 +86,9 @@ import {
   listTransferRules,
   disableTransferRule,
   evaluateTransferRules,
+  installTransferRulesSchedule,
+  uninstallTransferRulesSchedule,
+  transferRulesScheduleStatus,
   refreshNotifications,
   syncAllPlaidItems,
   unlinkPlaidItem,
@@ -106,6 +109,7 @@ import {
   achStatus,
   simulateAchPosted,
   syncAchTransfers,
+  achWebhookStatus,
   registerPushDevice,
   listPushDevices,
   unlinkPushDevice,
@@ -1109,6 +1113,11 @@ async function transferRulesCommand(
   sub: string | undefined,
   args: string[],
 ): Promise<void> {
+  if (sub === "schedule") {
+    await transferRulesScheduleCommand(args[0], args.slice(1));
+    return;
+  }
+
   const db = await openCliDatabase();
   try {
     if (!isOnboarded(db)) {
@@ -1131,7 +1140,7 @@ async function transferRulesCommand(
         const name = flags.name;
         if (!name || !fromAccountId || !toAccountId || !Number.isFinite(amountUsd)) {
           console.error(
-            "Usage: attache transfer rules create --name <n> --from <id> --to <id> --amount <usd> [--max-run <usd>] [--max-month <usd>] [--autonomy proposal|auto] [--threshold <usd>]",
+            "Usage: attache transfer rules create --name <n> --from <id> --to <id> --amount <usd> [--max-run <usd>] [--max-month <usd>] [--autonomy proposal|auto] [--threshold <usd>] [--when <cel>]",
           );
           process.exit(1);
         }
@@ -1150,6 +1159,7 @@ async function transferRulesCommand(
                 ? flags.autonomy
                 : undefined,
             thresholdUsd: flags.threshold ? Number(flags.threshold) : undefined,
+            whenCel: flags.when,
           });
           console.log(JSON.stringify({ ok: true, rule }, null, 2));
         } catch (e) {
@@ -1185,12 +1195,55 @@ async function transferRulesCommand(
       }
       default:
         console.error(
-          "Usage: attache transfer rules list|create|disable|evaluate",
+          "Usage: attache transfer rules list|create|disable|evaluate|schedule …",
         );
         process.exit(1);
     }
   } finally {
     db.close();
+  }
+}
+
+function transferRulesScheduleCommand(
+  sub: string | undefined,
+  args: string[],
+): void {
+  const flags = parseFlags(args);
+  const dataDir = flags["data-dir"];
+  switch (sub) {
+    case "status":
+    case undefined: {
+      console.log(
+        JSON.stringify(
+          transferRulesScheduleStatus(
+            process.env,
+            undefined,
+            dataDir,
+          ),
+          null,
+          2,
+        ),
+      );
+      break;
+    }
+    case "install": {
+      const status = installTransferRulesSchedule({
+        dataDir,
+        loadLaunchd: flags["no-load"] !== "true",
+      });
+      console.log(JSON.stringify({ ok: true, ...status }, null, 2));
+      break;
+    }
+    case "uninstall": {
+      const status = uninstallTransferRulesSchedule({ dataDir });
+      console.log(JSON.stringify({ ok: true, ...status }, null, 2));
+      break;
+    }
+    default:
+      console.error(
+        "Usage: attache transfer rules schedule status|install|uninstall [--no-load] [--data-dir <path>]",
+      );
+      process.exit(1);
   }
 }
 
@@ -1828,8 +1881,12 @@ async function achCommand(sub: string | undefined, args: string[] = []): Promise
         console.log(JSON.stringify({ count: rows.length, transfers: rows }, null, 2));
         break;
       }
+      case "webhook-status": {
+        console.log(JSON.stringify(achWebhookStatus(), null, 2));
+        break;
+      }
       default:
-        console.error("Usage: attache ach status|simulate|sync");
+        console.error("Usage: attache ach status|simulate|sync|webhook-status");
         process.exit(1);
     }
   } finally {
@@ -1885,12 +1942,15 @@ Commands:
   attache transfer rules list [--enabled]
   attache transfer rules create --name <n> --from <id> --to <id> --amount <usd>
       [--max-run <usd>] [--max-month <usd>] [--autonomy proposal|auto] [--threshold <usd>]
+      [--when '<cel>']                 # optional CEL guard (liquidBalanceUsd, runwayDays, …)
   attache transfer rules disable <id>
   attache transfer rules evaluate [--rule <id>]
+  attache transfer rules schedule status|install|uninstall [--no-load]
   attache ledger status                    sqlite (default) or tigerbeetle ping
   attache ach status                       ACH rail (off | sandbox | plaid)
   attache ach simulate <proposalId>        Sandbox: mark ACH posted → ledger
   attache ach sync                         Poll submitted ACH and settle posted
+  attache ach webhook-status               POST /api/ach/webhook (needs ATTACHE_ACH_WEBHOOK_SECRET)
 
   attache agent runway [--days N]     Solvency snapshot + accounts
   attache agent attention             Home attention strip (HITL, overdue, sync)

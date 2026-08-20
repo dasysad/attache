@@ -64,6 +64,19 @@ function mapRow(row: Row): AchTransferRecord {
   };
 }
 
+export function getAchTransferByDebitId(
+  db: Database.Database,
+  debitTransferId: string,
+): AchTransferRecord | null {
+  const tenantId = requireTenantId(db);
+  const row = db
+    .prepare(
+      `SELECT * FROM ach_transfer WHERE tenant_id = ? AND debit_transfer_id = ?`,
+    )
+    .get(tenantId, debitTransferId) as Row | undefined;
+  return row ? mapRow(row) : null;
+}
+
 export function getAchTransferByProposal(
   db: Database.Database,
   proposalId: string,

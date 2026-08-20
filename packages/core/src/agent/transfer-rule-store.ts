@@ -18,6 +18,7 @@ import type {
   TransferRuleRunOutcome,
   TransferRuleTrigger,
 } from "./transfer-rule-types.js";
+import { assertValidWhenCel } from "./transfer-rule-cel.js";
 
 interface RuleRow {
   id: string;
@@ -170,7 +171,15 @@ export function createTransferRule(
     maxPerRunUsd: maxPerRun,
     maxPerMonthUsd: maxPerMonth,
     autonomy: parseAutonomy(input.autonomy),
+    whenCel: null,
   };
+  if (input.whenCel !== undefined) {
+    const expr = input.whenCel.trim();
+    if (expr) {
+      assertValidWhenCel(expr);
+      policy.whenCel = expr;
+    }
+  }
 
   const now = new Date().toISOString();
   const id = randomUUID();

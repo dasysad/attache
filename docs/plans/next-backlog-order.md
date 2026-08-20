@@ -20,9 +20,9 @@
 | 11 | **Credential hygiene** (BL-7) | ✅ P0 shipped — [plan](./vs-credential-hygiene.md); no password store |
 | 12 | **Hosted mail ingress** (BL-8) | ✅ P0 BYO Mailgun — [plan](./vs-hosted-mail-ingress.md) |
 | 13 | **Credential hygiene P2** (BL-7) | ✅ assisted change HITL — [plan](./vs-credential-hygiene.md) |
-| 14 | **ACH autonomous rules** (BL-12) | ✅ P0 shipped — [plan](./vs-transfer-rules.md) · [ADR-017](../adr/017-transfer-rules-typed-local-policies.md) |
+| 14 | **ACH autonomous rules** (BL-12) | ✅ P0+P1 — [plan](./vs-transfer-rules.md) · [ADR-017](../adr/017-transfer-rules-typed-local-policies.md) |
 | 15 | **SendGrid inbound** (BL-8) | Symmetric to Mailgun; Attache SMTP still out |
-| 16 | **ACH webhooks** (BL-12 P2) | Live settlement without poll |
+| 16 | **ACH webhooks** (BL-12 P2) | ✅ shipped — `POST /api/ach/webhook` |
 | 17 | **Premium billing gate** (BL-5) | ADR-006 soft gate |
 | 18 | **ZK R2 backup** (BL-9) | Optional tier |
 | 19 | **WorkOS app identity** (BL-10) | Separate from Gmail OAuth |

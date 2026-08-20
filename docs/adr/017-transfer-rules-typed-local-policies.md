@@ -32,8 +32,9 @@ Store each rule as structured JSON fields on `transfer_rule`:
 | `action` | What to do (`sweep` fixed amount from → to) |
 | `policy` | Caps + autonomy (`maxPerRunUsd`, `maxPerMonthUsd`, `proposal` \| `auto`) |
 
-Optional CEL `when` expressions are **P1** (same grammar as Starflow ADR-048 via
-`cel-js`). P0 uses deterministic triggers only.
+Optional CEL `when` expressions live in `policy.whenCel` (same grammar as
+Starflow ADR-048 via `@marcbachmann/cel-js`). False → ephemeral skip (does not
+burn the monthly period). Typed triggers remain the primary gate.
 
 ### Execution
 
@@ -52,7 +53,8 @@ Optional CEL `when` expressions are **P1** (same grammar as Starflow ADR-048 via
 | **@attache/core evaluator** | Source of truth; offline dogfood |
 | **Starflow (BL-13)** | Cron / HITL wait / notify that shells `attache transfer rules evaluate` |
 | **Decider** | Multi-option agent choices (“which account to fund?”) — not sweep storage |
-| **CEL** | Optional `when:` guards (P1), aligned with Starflow |
+| **CEL** | Optional `whenCel` guards on policy (shipped) |
+| **launchd/cron** | `attache transfer rules schedule install` — local daily evaluate |
 
 ## Alternatives considered
 
@@ -66,10 +68,11 @@ Optional CEL `when` expressions are **P1** (same grammar as Starflow ADR-048 via
 ## Consequences
 
 - Agents: `attache transfer rules …` / MCP `list_transfer_rules`,
-  `create_transfer_rule`, `disable_transfer_rule`, `evaluate_transfer_rules`.
+  `create_transfer_rule`, `disable_transfer_rule`, `evaluate_transfer_rules`,
+  schedule install/uninstall tools.
 - Auto autonomy never bypasses honesty: Plaid legs still need ACH on to move
   bank money; otherwise approve stays consent-only or ledger for manual.
-- Rule builder UI remains out of P0 (CLI/MCP first).
+- Rule builder UI remains out of scope (CLI/MCP first).
 
 ## References
 

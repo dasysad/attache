@@ -17,6 +17,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@marcbachmann/cel-js": "^8.0.0",
     "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.11.1",
     "imapflow": "^1.0.198",
     "plaid": "^43.0.0",

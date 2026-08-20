@@ -420,6 +420,22 @@ export {
   type EvaluateTransferRulesOptions,
   type EvaluateTransferRulesResult,
 } from "./agent/transfer-rules.js";
+export {
+  assertValidWhenCel,
+  evaluateWhenCel,
+  TransferRuleCelError,
+  type TransferRuleCelSnapshot,
+} from "./agent/transfer-rule-cel.js";
+export {
+  installTransferRulesSchedule,
+  uninstallTransferRulesSchedule,
+  transferRulesScheduleStatus,
+  transferRulesEvaluateCommand,
+  transferRulesCronLine,
+  buildLaunchdPlist,
+  TRANSFER_RULES_LAUNCHD_LABEL,
+  type TransferRulesScheduleStatus,
+} from "./agent/transfer-rule-schedule.js";
 export type {
   TransferRule,
   TransferRuleTrigger,
@@ -475,12 +491,22 @@ export {
   submitAch,
   simulateAchPosted,
   syncAchTransfers,
+  settleAchToLedgerForProposal,
+  markProposalAchFailed,
 } from "./ach/submit.js";
 export {
   getAchTransferByProposal,
+  getAchTransferByDebitId,
   listAchTransfers,
   type AchTransferRecord,
 } from "./ach/store.js";
+export {
+  handleAchWebhook,
+  achWebhookStatus,
+  isAchWebhookConfigured,
+  AchWebhookError,
+  type AchWebhookPayload,
+} from "./ach/webhook.js";
 export type { AchPort, AchRailTransfer } from "./ach/port.js";
 export {
   InsufficientFundsError,

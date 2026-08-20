@@ -12,12 +12,18 @@
  */
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
-import { getAccount } from "../account.js";
+import { getAccount, listAccounts, sumLiquidBalanceUsd } from "../account.js";
+import { computeSolvencyForecast } from "../forecast.js";
+import { listObligations } from "../obligation.js";
 import { isOnboarded } from "../tenant.js";
 import {
   approveTransferProposal,
   createTransferProposal,
 } from "./transfer-queue.js";
+import {
+  evaluateWhenCel,
+  TransferRuleCelError,
+} from "./transfer-rule-cel.js";
 import type { TransferRule, TransferRuleRun } from "./transfer-rule-types.js";
 import {
   getTransferRuleRunForPeriod,
@@ -123,6 +129,30 @@ async function evaluateOneRule(
     return ephemeralSkip(rule, periodKey, "Trigger not matched");
   }
 
+  if (rule.policy.whenCel) {
+    try {
+      const snapshot = buildCelSnapshot(db, rule);
+      if (!evaluateWhenCel(rule.policy.whenCel, snapshot)) {
+        return ephemeralSkip(rule, periodKey, "CEL when guard false");
+      }
+    } catch (e) {
+      const msg =
+        e instanceof TransferRuleCelError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : String(e);
+      return insertTransferRuleRun(db, {
+        ruleId: rule.id,
+        periodKey,
+        idempotencyKey,
+        outcome: "blocked",
+        amountUsd: rule.action.amountUsd,
+        message: `CEL when error: ${msg}`,
+      });
+    }
+  }
+
   const amount = rule.action.amountUsd;
   if (amount > rule.policy.maxPerRunUsd) {
     return insertTransferRuleRun(db, {
@@ -223,4 +253,27 @@ async function evaluateOneRule(
       message: e instanceof Error ? e.message : String(e),
     });
   }
+}
+
+/**
+ * Snapshot for CEL when guards — no I/O beyond SQLite household state.
+ * Why: agents write expressions against solvency-ish numbers, not raw SQL.
+ */
+function buildCelSnapshot(
+  db: Database.Database,
+  rule: TransferRule,
+): import("./transfer-rule-cel.js").TransferRuleCelSnapshot {
+  const accounts = listAccounts(db);
+  const obligations = listObligations(db).filter((o) => !o.paidAt);
+  const forecast = computeSolvencyForecast(accounts, obligations, 30);
+  const from = getAccount(db, rule.action.fromAccountId);
+  const to = getAccount(db, rule.action.toAccountId);
+  return {
+    liquidBalanceUsd: sumLiquidBalanceUsd(accounts),
+    runwayDays: forecast.runwayDays,
+    dueIn7dUsd: forecast.dueIn7dUsd,
+    fromBalanceUsd: from?.balanceUsd ?? 0,
+    toBalanceUsd: to?.balanceUsd ?? 0,
+    amountUsd: rule.action.amountUsd,
+  };
 }

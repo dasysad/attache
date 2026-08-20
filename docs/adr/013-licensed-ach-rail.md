@@ -65,16 +65,17 @@ does not. Attache never holds customer deposits.
 - Agents can `attache ach status` / MCP `ach_status` and see `off|sandbox|plaid`.
 - Sandbox copy must say **not a real bank move**.
 - Unlink Plaid while `ach_pending` is refused (same as pending proposals).
-- Webhooks for live settlement are out of slice 1 (`ach sync` polls).
+- Webhooks for live settlement: `POST /api/ach/webhook` when
+  `ATTACHE_ACH_WEBHOOK_SECRET` is set (Bearer). Otherwise `ach sync` polls.
 
 ## Implementation plan
 
 | Phase | Deliverable |
 |-------|-------------|
-| **P0** | `AchPort` + fake adapter + HITL submit/simulate/settle + CLI/MCP (this slice) |
+| **P0** | `AchPort` + fake adapter + HITL submit/simulate/settle + CLI/MCP ✅ |
 | **P1** | Live Plaid Transfer REST + `ach sync` against real statuses |
-| **P2** | Webhook listener / Transfer events |
-| **P3** | Autonomous rules — typed SQLite policies ([ADR-017](./017-transfer-rules-typed-local-policies.md)) ✅ P0; CEL/Starflow later |
+| **P2** | Webhook listener / Transfer events ✅ (`ATTACHE_ACH_WEBHOOK_SECRET`) |
+| **P3** | Autonomous rules — typed SQLite policies ([ADR-017](./017-transfer-rules-typed-local-policies.md)) ✅ |
 
 **Explicitly deferred:** external payees (routing/account numbers), RTP/wire,
 SnapTrade cash sweeps, Attache as originator without Plaid.

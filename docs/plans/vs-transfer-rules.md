@@ -1,6 +1,6 @@
 # Slice — Autonomous transfer rules (BL-12 P3 / ADR-017)
 
-**Status:** ✅ P0 shipped  
+**Status:** ✅ P0 + P1 (CEL when + schedule) shipped  
 **Parent:** [next-backlog-order.md](./next-backlog-order.md) · BL-12  
 **ADRs:** [017](../adr/017-transfer-rules-typed-local-policies.md), [013](../adr/013-licensed-ach-rail.md), [001](../adr/001-tigerbeetle-financial-ledger.md)
 
@@ -40,5 +40,16 @@ attache transfer approve <proposalId>
 
 ## Out of scope (P0)
 
-CEL `when:`, cron parsing, Starflow pipeline, Decider scoring, rule builder UI,
-excess-above-balance amount kinds, webhook ACH settlement.
+Starflow pipeline, Decider scoring, rule builder UI, excess-above-balance amount
+kinds.
+
+## P1 (shipped with follow-ons)
+
+1. **CEL `when`:** optional `policy.whenCel` — false skips without burning the
+   month. Vars: `liquidBalanceUsd`, `runwayDays`, `dueIn7dUsd`,
+   `fromBalanceUsd`, `toBalanceUsd`, `amountUsd`. CLI `--when`, MCP `whenCel`.
+2. **Local schedule:** `attache transfer rules schedule install|uninstall|status`
+   — launchd daily 06:00 (macOS) or crontab line file (Linux).
+3. **ACH webhooks:** `POST /api/ach/webhook` with Bearer
+   `ATTACHE_ACH_WEBHOOK_SECRET` (ADR-013 P2). Poll via `ach sync` when off.
+
