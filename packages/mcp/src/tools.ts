@@ -33,6 +33,14 @@ import {
   confirmAssetHint,
   deleteHouseholdAsset,
   listHouseholdEntities,
+  getSetupCoverage,
+  listMembers,
+  addMember,
+  removeMember,
+  listIncomeStreams,
+  createIncomeStream,
+  deleteIncomeStream,
+  getStatementRegister,
   setTransactionCategory,
   DatabaseLockedError,
   databaseLockedHelp,
@@ -425,8 +433,158 @@ export function registerAttacheTools(server: McpServer): void {
   );
 
   server.tool(
+    "setup_status",
+    "Household coverage checklist (accounts, bills, income, assets, connect). Skippable gaps.",
+    {},
+    async () => withDb((db) => {
+      return jsonResult({ ok: true, ...getSetupCoverage(db) });
+    }),
+  );
+
+  server.tool(
+    "setup_complete",
+    "Mark the optional setup wizard complete (same as --complete-setup / Skip).",
+    {},
+    async () => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      markSetupComplete(db);
+      return jsonResult({ ok: true, ...getSetupCoverage(db) });
+    }),
+  );
+
+  server.tool(
+    "list_members",
+    "Household people (account_holder, partner, dependent, other). Not mesh auth.",
+    {},
+    async () => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      const members = listMembers(db);
+      return jsonResult({ ok: true, count: members.length, members });
+    }),
+  );
+
+  server.tool(
+    "add_member",
+    "Add partner|dependent|other. Cannot add account_holder (use onboard).",
+    {
+      displayName: z.string(),
+      kind: z.enum(["partner", "dependent", "other"]),
+    },
+    async (input) => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      try {
+        const member = addMember(db, input);
+        return jsonResult({ ok: true, member });
+      } catch (e) {
+        return jsonResult({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }),
+  );
+
+  server.tool(
+    "remove_member",
+    "Remove a non-sole account_holder member.",
+    { id: z.string() },
+    async ({ id }) => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      try {
+        removeMember(db, id);
+        return jsonResult({ ok: true, id });
+      } catch (e) {
+        return jsonResult({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }),
+  );
+
+  server.tool(
+    "list_income_streams",
+    "Recurring income streams (manual). Feeds runway and cashflow planned income.",
+    {},
+    async () => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      const streams = listIncomeStreams(db);
+      return jsonResult({ ok: true, count: streams.length, streams });
+    }),
+  );
+
+  server.tool(
+    "create_income_stream",
+    "Create a recurring income stream. Not ACH / not payroll OCR.",
+    {
+      label: z.string(),
+      amountUsd: z.number().positive(),
+      nextDate: z.string().describe("YYYY-MM-DD"),
+      cadence: z.enum(["once", "monthly", "yearly"]).optional(),
+      memberId: z.string().optional(),
+      notes: z.string().optional(),
+    },
+    async (input) => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      try {
+        const stream = createIncomeStream(db, input);
+        return jsonResult({ ok: true, stream });
+      } catch (e) {
+        return jsonResult({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }),
+  );
+
+  server.tool(
+    "delete_income_stream",
+    "Delete an income stream by id.",
+    { id: z.string() },
+    async ({ id }) => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      try {
+        deleteIncomeStream(db, id);
+        return jsonResult({ ok: true, id });
+      } catch (e) {
+        return jsonResult({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }),
+  );
+
+  server.tool(
+    "list_statements",
+    "Statement-class ingest events + unsatisfied connect hints (not a DMS).",
+    {},
+    async () => withDb((db) => {
+      if (!isOnboarded(db)) {
+        return jsonResult({ ok: false, error: "not onboarded" });
+      }
+      return jsonResult({ ok: true, ...getStatementRegister(db) });
+    }),
+  );
+
+  server.tool(
     "get_cashflow",
-    "Posted bank activity by category (pending excluded). Default last 30 UTC days. Same as attache cashflow.",
+    "Posted bank activity by category (pending excluded). Includes plannedIncomeUsd / plannedObligationsUsd. Default last 30 UTC days.",
     {
       fromDate: z.string().optional().describe("Inclusive YYYY-MM-DD"),
       toDate: z.string().optional().describe("Inclusive YYYY-MM-DD"),

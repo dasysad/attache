@@ -26,6 +26,10 @@ import {
   type CashflowReport,
   type CashflowTrend,
   type HouseholdAsset,
+  type SetupCoverage,
+  type HouseholdMember,
+  type IncomeStream,
+  type StatementRegister,
   groupAccountsByKind,
   sumBrokerageUsd,
   sumLiquidBalanceUsd,
@@ -82,7 +86,18 @@ export function layout(title: string, body: string): string {
     "/app/snaptrade",
     "/app/ingest",
   ]);
-  const moreOpen = navGroupOpen(["/pricing", "/app/costs", "/app/net-worth", "/app/cashflow"]);
+  const moreOpen = navGroupOpen([
+    "/pricing",
+    "/app/costs",
+    "/app/net-worth",
+    "/app/cashflow",
+    "/app/setup",
+    "/app/people",
+    "/app/assets",
+    "/app/entities",
+    "/app/income",
+    "/app/statements",
+  ]);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -112,6 +127,12 @@ export function layout(title: string, body: string): string {
       </details>
       <details class="nav-more"${moreOpen ? " open" : ""}>
         <summary>More</summary>
+        ${navLink("/app/setup", "Setup")}
+        ${navLink("/app/people", "People")}
+        ${navLink("/app/assets", "Assets")}
+        ${navLink("/app/entities", "Entities")}
+        ${navLink("/app/income", "Income")}
+        ${navLink("/app/statements", "Statements")}
         ${navLink("/pricing", "Pricing")}
         ${navLink("/app/costs", "Costs")}
         ${navLink("/app/net-worth", "Net worth")}
@@ -1086,12 +1107,16 @@ export function cashflowPage(
     <button type="submit">Filter</button>
   </form>
   <div class="stat-grid">
-    <att-stat label="Inflow" value="$${moneyUsd(report.inflowUsd)}"></att-stat>
-    <att-stat label="Outflow" value="$${moneyUsd(report.outflowUsd)}"
+    <att-stat label="Inflow (posted)" value="$${moneyUsd(report.inflowUsd)}"></att-stat>
+    <att-stat label="Outflow (posted)" value="$${moneyUsd(report.outflowUsd)}"
       ${deltaHelper ? `helper="${deltaHelper}"` : ""}
       ${trend ? `tone="${outflowTone}"` : ""}></att-stat>
-    <att-stat label="Net" value="$${moneyUsd(report.netUsd)}"
+    <att-stat label="Net (posted)" value="$${moneyUsd(report.netUsd)}"
       tone="${report.netUsd < 0 ? "bad" : "good"}"></att-stat>
+    <att-stat label="Planned income" value="$${moneyUsd(report.plannedIncomeUsd)}"
+      helper="income_stream occurrences in window"></att-stat>
+    <att-stat label="Planned bills" value="$${moneyUsd(report.plannedObligationsUsd)}"
+      helper="obligation occurrences in window"></att-stat>
   </div>
   ${spark}
   <att-cashflow-bar buckets-json="${jsonAttr(report.buckets)}"
@@ -1921,6 +1946,239 @@ export async function parseCostForm(c: Context): Promise<{
  * VS-8 — standalone unlock page when the encrypted DB has no key in this process.
  * No nav/header: every other route is gated until unlock succeeds.
  */
+export function setupPage(coverage: SetupCoverage, message?: string): string {
+    const rows = coverage.items
+    .map((i) => {
+      return `<li class="setup-item">
+        <att-badge severity="${i.satisfied ? "info" : "warning"}">${i.satisfied ? "done" : "gap"}</att-badge>
+        <strong>${escapeHtml(i.title)}</strong>
+        <p>${escapeHtml(i.body)}</p>
+        <p class="meta"><a href="${escapeHtml(i.href)}">Open</a> · <code>${escapeHtml(i.cliHint)}</code></p>
+      </li>`;
+    })
+    .join("");
+  return layout(
+    "Setup",
+    `
+<section class="manage-page">
+  <h1>Household setup</h1>
+  <p>Coverage checklist — every item is skippable. Same as <code>attache setup status</code>. Automation (rules/ACH UI) waits until basics exist.</p>
+  ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
+  <p class="meta">${escapeHtml(coverage.message)}</p>
+  <ul class="setup-list">${rows || `<li class="empty-hint">Not onboarded.</li>`}</ul>
+  ${
+    coverage.onboarded && !coverage.setupComplete
+      ? `<form method="post" action="/app/setup/complete"><button type="submit">Mark setup complete</button></form>`
+      : ""
+  }
+</section>`,
+  );
+}
+
+export function peoplePage(
+  members: HouseholdMember[],
+  message?: string,
+  error?: string,
+): string {
+  const list =
+    members.length === 0
+      ? `<p class="empty-hint">No members — onboard first.</p>`
+      : `<ul class="manage-list">${members
+          .map(
+            (m) => `<li class="manage-item">
+            <strong>${escapeHtml(m.displayName)}</strong>
+            <span class="meta">${escapeHtml(m.kind)} · ${escapeHtml(m.authLevel)}</span>
+            ${
+              m.kind !== "account_holder"
+                ? `<form method="post" action="/app/people/${escapeHtml(m.id)}/delete" class="inline-form">
+                     <button type="submit" class="btn-secondary">Remove</button>
+                   </form>`
+                : ""
+            }
+          </li>`,
+          )
+          .join("")}</ul>`;
+  return layout(
+    "People",
+    `
+<section class="manage-page">
+  <h1>People</h1>
+  <p>Household roles — not mesh login. Agent: <code>attache members list</code></p>
+  ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
+  ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+  ${list}
+  <h2>Add member</h2>
+  <form method="post" action="/app/people" class="onboard-form">
+    <label>Name <input name="name" required /></label>
+    <label>Kind
+      <select name="kind">
+        <option value="partner">Partner</option>
+        <option value="dependent">Dependent</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <button type="submit">Add</button>
+  </form>
+</section>`,
+  );
+}
+
+export function assetsRegisterPage(
+  assets: HouseholdAsset[],
+  message?: string,
+  error?: string,
+): string {
+  const list =
+    assets.length === 0
+      ? `<p class="empty-hint">No home/vehicle rows yet — <code>attache assets create</code> or confirm a discover hint. Estimate optional.</p>`
+      : `<ul class="manage-list">${assets
+          .map(
+            (a) => `<li class="manage-item">
+            <strong>${escapeHtml(a.label)}</strong>
+            <span class="meta">${escapeHtml(a.kind)}${
+              a.estimatedUsd != null ? ` · $${moneyUsd(a.estimatedUsd)}` : " · unvalued"
+            }</span>
+            <form method="post" action="/app/assets/${escapeHtml(a.id)}/delete" class="inline-form">
+              <button type="submit" class="btn-secondary">Delete</button>
+            </form>
+          </li>`,
+          )
+          .join("")}</ul>`;
+  return layout(
+    "Assets",
+    `
+<section class="manage-page">
+  <h1>Home &amp; vehicles</h1>
+  <p>Thin register — not a document vault. Agent: <code>attache assets list</code></p>
+  ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
+  ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+  ${list}
+  <h2>Add asset</h2>
+  <form method="post" action="/app/assets" class="onboard-form">
+    <label>Kind
+      <select name="kind"><option value="home">Home</option><option value="vehicle">Vehicle</option></select>
+    </label>
+    <label>Label <input name="label" required placeholder="123 Main" /></label>
+    <label>Estimate (USD, optional) <input name="estimate" type="number" min="0" step="1" /></label>
+    <button type="submit">Add</button>
+  </form>
+</section>`,
+  );
+}
+
+export function entitiesPage(
+  entities: Array<{ name: string; kind: string; obligationCount: number }>,
+): string {
+  const list =
+    entities.length === 0
+      ? `<p class="empty-hint">No payees or institutions yet — add a bill or Link an account.</p>`
+      : `<ul class="manage-list">${entities
+          .map(
+            (e) => `<li class="manage-item">
+            <strong>${escapeHtml(e.name)}</strong>
+            <span class="meta">${escapeHtml(e.kind)}${
+              e.obligationCount ? ` · ${e.obligationCount} bill(s)` : ""
+            }</span>
+          </li>`,
+          )
+          .join("")}</ul>`;
+  return layout(
+    "Entities",
+    `
+<section class="manage-page">
+  <h1>Payees &amp; institutions</h1>
+  <p>Projection from bills and accounts — not a CRM. Agent: <code>attache entities list</code></p>
+  ${list}
+</section>`,
+  );
+}
+
+export function incomePage(
+  streams: IncomeStream[],
+  message?: string,
+  error?: string,
+): string {
+  const list =
+    streams.length === 0
+      ? `<p class="empty-hint">No income streams — runway is outflow-only until you add payroll. Agent: <code>attache income create</code></p>`
+      : `<ul class="manage-list">${streams
+          .map(
+            (s) => `<li class="manage-item">
+            <strong>${escapeHtml(s.label)}</strong>
+            <span class="meta">$${moneyUsd(s.amountUsd)} · ${escapeHtml(s.cadence)} · next ${escapeHtml(s.nextDate)}</span>
+            <form method="post" action="/app/income/${escapeHtml(s.id)}/delete" class="inline-form">
+              <button type="submit" class="btn-secondary">Delete</button>
+            </form>
+          </li>`,
+          )
+          .join("")}</ul>`;
+  return layout(
+    "Income",
+    `
+<section class="manage-page">
+  <h1>Income streams</h1>
+  <p>Manual recurring inflows. Feeds runway and planned cashflow. Not ACH.</p>
+  ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
+  ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+  ${list}
+  <h2>Add income</h2>
+  <form method="post" action="/app/income" class="onboard-form">
+    <label>Label <input name="label" required placeholder="Payroll" /></label>
+    <label>Amount (USD) <input name="amount" type="number" min="0.01" step="0.01" required /></label>
+    <label>Next date <input name="next" type="date" required /></label>
+    <label>Cadence
+      <select name="cadence">
+        <option value="monthly">Monthly</option>
+        <option value="yearly">Yearly</option>
+        <option value="once">Once</option>
+      </select>
+    </label>
+    <button type="submit">Add</button>
+  </form>
+</section>`,
+  );
+}
+
+export function statementsPage(register: StatementRegister): string {
+  const stmts =
+    register.statements.length === 0
+      ? `<p class="empty-hint">No pending statement events.</p>`
+      : `<ul class="manage-list">${register.statements
+          .map(
+            (s) => `<li class="manage-item">
+            <strong>${escapeHtml(s.payee)}</strong>
+            <span class="meta">${escapeHtml(s.ingestedAt.slice(0, 10))} · <code>${escapeHtml(s.eventId)}</code></span>
+          </li>`,
+          )
+          .join("")}</ul>`;
+  const hints =
+    register.connectHints.length === 0
+      ? `<p class="empty-hint">No connect hints waiting.</p>`
+      : `<ul class="manage-list">${register.connectHints
+          .map(
+            (h) => `<li class="manage-item">
+            <strong>${escapeHtml(h.institutionHint ?? h.payee ?? "Institution")}</strong>
+            <span class="meta">${escapeHtml(h.rail ?? "plaid")} — Link is explicit</span>
+            <p class="meta"><a href="${h.rail === "snaptrade" ? "/app/snaptrade" : "/app/plaid"}">Connect</a>
+              · <code>attache ${h.rail === "snaptrade" ? "snaptrade" : "plaid"} connect-sandbox</code></p>
+          </li>`,
+          )
+          .join("")}</ul>`;
+  return layout(
+    "Statements",
+    `
+<section class="manage-page">
+  <h1>Statements</h1>
+  <p>${escapeHtml(register.message)} Not a document vault. Agent: <code>attache statements list</code></p>
+  <h2>Statement events</h2>
+  ${stmts}
+  <h2>Connect hints</h2>
+  ${hints}
+  <p class="list-footer"><a href="/app/ingest">Inbox</a> · <a href="/app/connections">Connections</a></p>
+</section>`,
+  );
+}
+
 export function vaultUnlockPage(error?: string): string {
   const errBlock = error
     ? `<p class="vault-error" role="alert">${escapeHtml(error)}</p>`

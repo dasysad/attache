@@ -97,6 +97,17 @@ import {
   computeCashflowTrend,
   parseFundingKind,
   listHouseholdAssets,
+  listHouseholdEntities,
+  getSetupCoverage,
+  listMembers,
+  addMember,
+  removeMember,
+  listIncomeStreams,
+  createIncomeStream,
+  deleteIncomeStream,
+  getStatementRegister,
+  createHouseholdAsset,
+  deleteHouseholdAsset,
   confirmAssetHint,
   registerPushDevice,
   listPushDevices,
@@ -137,6 +148,12 @@ import {
   setTransferPendingCount,
   transfersPage,
   vaultUnlockPage,
+  setupPage,
+  peoplePage,
+  assetsRegisterPage,
+  entitiesPage,
+  incomePage,
+  statementsPage,
 } from "./views.js";
 import { syncNotificationsSync } from "./notify-sync.js";
 import { resolvePublicRoot } from "./paths.js";
@@ -286,7 +303,12 @@ app.get("/", (c) =>
     const tenant = getTenant(db)!;
     const accounts = listAccounts(db);
     const obligations = listObligations(db);
-    const forecast = computeSolvencyForecast(accounts, obligations);
+    const forecast = computeSolvencyForecast(
+      accounts,
+      obligations,
+      30,
+      listIncomeStreams(db),
+    );
     const txs = listRecentTransactions(db, 12).map((t) => ({
       ...t,
       accountLabel: accountLabelForTransaction(db, t.fundingAccountId),
@@ -633,6 +655,179 @@ app.get("/app/cashflow", (c) =>
       const fallback = computeCashflowTrend(db, {});
       return c.html(cashflowPage(fallback.current, msg, fallback), 400);
     }
+  }),
+);
+
+app.get("/app/setup", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const msg = c.req.query("msg");
+    return c.html(setupPage(getSetupCoverage(db), msg));
+  }),
+);
+
+app.post("/app/setup/complete", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    markSetupComplete(db);
+    return c.redirect("/app/setup?msg=Setup+marked+complete");
+  }),
+);
+
+app.get("/app/people", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/people");
+    if (redirect) return redirect;
+    return c.html(
+      peoplePage(listMembers(db), c.req.query("msg"), c.req.query("error")),
+    );
+  }),
+);
+
+app.post("/app/people", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const body = await c.req.parseBody();
+    const name = String(body.name ?? "");
+    const kind = String(body.kind ?? "other");
+    try {
+      addMember(db, { displayName: name, kind });
+      return c.redirect("/app/people?msg=Member+added");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "failed";
+      return c.redirect(`/app/people?error=${encodeURIComponent(msg)}`);
+    }
+  } finally {
+    db.close();
+  }
+});
+
+app.post("/app/people/:id/delete", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      removeMember(db, c.req.param("id"));
+      return c.redirect("/app/people?msg=Member+removed");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "failed";
+      return c.redirect(`/app/people?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.get("/app/assets", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/assets");
+    if (redirect) return redirect;
+    return c.html(
+      assetsRegisterPage(
+        listHouseholdAssets(db),
+        c.req.query("msg"),
+        c.req.query("error"),
+      ),
+    );
+  }),
+);
+
+app.post("/app/assets", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const body = await c.req.parseBody();
+    const estimateRaw = String(body.estimate ?? "").trim();
+    try {
+      createHouseholdAsset(db, {
+        kind: String(body.kind ?? "home"),
+        label: String(body.label ?? ""),
+        estimatedUsd: estimateRaw ? Number(estimateRaw) : null,
+      });
+      return c.redirect("/app/assets?msg=Asset+added");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "failed";
+      return c.redirect(`/app/assets?error=${encodeURIComponent(msg)}`);
+    }
+  } finally {
+    db.close();
+  }
+});
+
+app.post("/app/assets/:id/delete", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      deleteHouseholdAsset(db, c.req.param("id"));
+      return c.redirect("/app/assets?msg=Asset+deleted");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "failed";
+      return c.redirect(`/app/assets?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.get("/app/entities", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/entities");
+    if (redirect) return redirect;
+    return c.html(entitiesPage(listHouseholdEntities(db)));
+  }),
+);
+
+app.get("/app/income", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/income");
+    if (redirect) return redirect;
+    return c.html(
+      incomePage(listIncomeStreams(db), c.req.query("msg"), c.req.query("error")),
+    );
+  }),
+);
+
+app.post("/app/income", async (c) => {
+  const db = openDatabase();
+  try {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const body = await c.req.parseBody();
+    try {
+      createIncomeStream(db, {
+        label: String(body.label ?? ""),
+        amountUsd: Number(body.amount),
+        nextDate: String(body.next ?? ""),
+        cadence: String(body.cadence ?? "monthly"),
+      });
+      return c.redirect("/app/income?msg=Income+added");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "failed";
+      return c.redirect(`/app/income?error=${encodeURIComponent(msg)}`);
+    }
+  } finally {
+    db.close();
+  }
+});
+
+app.post("/app/income/:id/delete", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      deleteIncomeStream(db, c.req.param("id"));
+      return c.redirect("/app/income?msg=Income+deleted");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "failed";
+      return c.redirect(`/app/income?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.get("/app/statements", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const redirect = maybeSetupRedirect(db, "/app/statements");
+    if (redirect) return redirect;
+    return c.html(statementsPage(getStatementRegister(db)));
   }),
 );
 

@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import { countPendingTransferProposals } from "../agent/transfer-queue.js";
 import { listAccounts } from "../account.js";
 import { computeSolvencyForecast } from "../forecast.js";
+import { listIncomeStreams } from "../income-stream.js";
 import { listPendingBillReviews } from "../ingest/bill.js";
 import { listObligations } from "../obligation.js";
 import { isOnboarded } from "../tenant.js";
@@ -55,8 +56,12 @@ type TrackFn = (result: { notification: Notification; created: boolean }) => Not
 
 function evaluateSolvency(db: Database.Database, track: TrackFn): void {
   const accounts = listAccounts(db);
-  const obligations = listObligations(db);
-  const forecast = computeSolvencyForecast(accounts, obligations);
+  const forecast = computeSolvencyForecast(
+    accounts,
+    listObligations(db),
+    30,
+    listIncomeStreams(db),
+  );
 
   if (forecast.runwayDays === 0) {
     track(
@@ -100,8 +105,12 @@ function evaluateSolvency(db: Database.Database, track: TrackFn): void {
 }
 
 function evaluateObligations(db: Database.Database, track: TrackFn): void {
-  const forecast = computeSolvencyForecast(listAccounts(db), listObligations(db));
-
+  const forecast = computeSolvencyForecast(
+    listAccounts(db),
+    listObligations(db),
+    30,
+    listIncomeStreams(db),
+  );
   const overdue = forecast.upcoming.filter((o) => o.status === "overdue");
   if (overdue.length) {
     const total = overdue.reduce((s, o) => s + o.amountUsd, 0);

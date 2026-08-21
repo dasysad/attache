@@ -434,4 +434,20 @@ function migrate(db: Database.Database): void {
       UNIQUE(rule_id, period_key)
     );
   `);
+
+  // UI P4+: recurring income streams (manual). Not payroll OCR; runway consumes these.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS income_stream (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL REFERENCES tenant(id),
+      label TEXT NOT NULL,
+      amount_usd REAL NOT NULL CHECK(amount_usd > 0),
+      cadence TEXT NOT NULL DEFAULT 'monthly',
+      next_date TEXT NOT NULL,
+      member_id TEXT REFERENCES member(id),
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
 }

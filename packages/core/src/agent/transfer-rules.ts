@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import { getAccount, listAccounts, sumLiquidBalanceUsd } from "../account.js";
 import { computeSolvencyForecast } from "../forecast.js";
+import { listIncomeStreams } from "../income-stream.js";
 import { listObligations } from "../obligation.js";
 import { isOnboarded } from "../tenant.js";
 import {
@@ -265,7 +266,7 @@ function buildCelSnapshot(
 ): import("./transfer-rule-cel.js").TransferRuleCelSnapshot {
   const accounts = listAccounts(db);
   const obligations = listObligations(db).filter((o) => !o.paidAt);
-  const forecast = computeSolvencyForecast(accounts, obligations, 30);
+  const forecast = computeSolvencyForecast(accounts, obligations, 30, listIncomeStreams(db));
   const from = getAccount(db, rule.action.fromAccountId);
   const to = getAccount(db, rule.action.toAccountId);
   return {

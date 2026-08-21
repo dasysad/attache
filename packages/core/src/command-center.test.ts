@@ -15,6 +15,7 @@ import {
   sumBrokerageUsd,
 } from "./command-center.js";
 import type { FundingAccountKind } from "./domain.js";
+import { markSetupComplete } from "./setup.js";
 
 describe("groupAccountsByKind", () => {
   it("orders liquid → brokerage → liabilities and skips empty kinds", () => {
@@ -129,6 +130,7 @@ describe("collectAttention", () => {
     dataDir = mkdtempSync(join(tmpdir(), "attache-cc-"));
     const db = openDatabase(dataDir);
     createTenant(db, { householdName: "H", holderDisplayName: "A" });
+    markSetupComplete(db);
     return { db };
   }
 

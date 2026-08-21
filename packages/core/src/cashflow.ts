@@ -8,6 +8,9 @@
  */
 import type Database from "better-sqlite3";
 import { listTransactions } from "./plaid/store.js";
+import { listIncomeStreams, sumIncomeInRange } from "./income-stream.js";
+import { listObligations } from "./obligation.js";
+import { expandObligation } from "./forecast.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MS_DAY = 86_400_000;
@@ -32,6 +35,10 @@ export interface CashflowReport {
   netUsd: number;
   uncategorizedCount: number;
   buckets: CashflowBucket[];
+  /** Planned income_stream occurrences in the window (not bank txs). */
+  plannedIncomeUsd: number;
+  /** Unpaid obligation occurrences in the window. */
+  plannedObligationsUsd: number;
 }
 
 export interface CashflowDayPoint {
@@ -160,6 +167,27 @@ export function computeCashflow(
   const inflowUsd = buckets.reduce((s, b) => s + b.inflowUsd, 0);
   const outflowUsd = buckets.reduce((s, b) => s + b.outflowUsd, 0);
 
+  const plannedIncomeUsd = sumIncomeInRange(
+    listIncomeStreams(db),
+    fromDate,
+    toDate,
+  );
+  const from = parseUtcDate(fromDate);
+  const to = parseUtcDate(toDate);
+  const today = new Date(
+    Date.UTC(
+      new Date().getUTCFullYear(),
+      new Date().getUTCMonth(),
+      new Date().getUTCDate(),
+    ),
+  );
+  let plannedObligationsUsd = 0;
+  for (const ob of listObligations(db)) {
+    for (const occ of expandObligation(ob, from, to, today)) {
+      plannedObligationsUsd += occ.amountUsd;
+    }
+  }
+
   return {
     fromDate,
     toDate,
@@ -168,6 +196,8 @@ export function computeCashflow(
     netUsd: inflowUsd - outflowUsd,
     uncategorizedCount,
     buckets,
+    plannedIncomeUsd,
+    plannedObligationsUsd,
   };
 }
 

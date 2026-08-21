@@ -50,12 +50,16 @@ same domain (ADR-014).
 ### Jobs (in order, all optional after household)
 
 1. **Name the household** — `onboard` (already shipped).
-2. **Find documents in mail** — one Gmail OAuth (or IMAP) → bounded lookback.
-3. **Review candidates** — HITL; never auto-promote to obligations or Link.
-4. **Connect money** — Plaid (banks/cards/loans), SnapTrade (brokerage), or
+2. **Coverage checklist** — `/app/setup` / `attache setup status` shows gaps
+   (accounts, bills, people, income, assets, connect). Every item skippable;
+   leftovers return on Home attention. Discover remains an **accelerator**, not
+   the framing of setup ([vs-ui-household-basics.md](../plans/vs-ui-household-basics.md)).
+3. **Find documents in mail** — one Gmail OAuth (or IMAP) → bounded lookback.
+4. **Review candidates** — HITL; never auto-promote to obligations or Link.
+5. **Connect money** — Plaid (banks/cards/loans), SnapTrade (brokerage), or
    manual accounts (always first-class).
-5. **Fill remaining gaps** — `obligations create`, `accounts create`.
-6. **Land on the command center** — runway + attention, not a “you’re done”
+6. **Fill remaining gaps** — obligations, income streams, people, assets.
+7. **Land on the command center** — runway + attention, not a “you’re done”
    marketing screen.
 
 ### Discovery taxonomy (what “find in Gmail” means)

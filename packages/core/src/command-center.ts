@@ -19,6 +19,9 @@ import {
   countPendingTransferProposals,
   listTransferProposals,
 } from "./agent/transfer-queue.js";
+import { listIncomeStreams } from "./income-stream.js";
+import { isSetupComplete } from "./setup.js";
+import { listSetupGaps } from "./setup-coverage.js";
 
 /** Display order: liquid assets, invested, then liabilities. */
 export const ACCOUNT_KIND_ORDER: FundingAccountKind[] = [
@@ -109,11 +112,13 @@ export interface AttentionInput {
   pendingAssetHints: number;
   syncErrorAccounts: Array<{ name: string }>;
   achPending: number;
+  /** Optional setup gaps (accounts, bills, income, …). */
+  setupGaps?: Array<{ id: string; title: string; body: string; href: string; cliHint: string }>;
 }
 
 /**
  * Build the Home attention strip from already-computed counts.
- * Order is severity-of-job: overdue bills → HITL → ACH in flight → ingest → sync.
+ * Order is severity-of-job: overdue bills → HITL → ACH in flight → ingest → sync → setup.
  */
 export function buildAttention(input: AttentionInput): AttentionItem[] {
   const items: AttentionItem[] = [];
@@ -189,13 +194,31 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     });
   }
 
+  for (const gap of input.setupGaps ?? []) {
+    // Cap setup noise: only first three gaps.
+    if (items.filter((i) => i.id.startsWith("setup_")).length >= 3) break;
+    items.push({
+      id: `setup_${gap.id}`,
+      severity: "info",
+      title: `Setup: ${gap.title}`,
+      body: gap.body,
+      href: gap.href,
+      cliHint: gap.cliHint,
+    });
+  }
+
   return items;
 }
 
 /** Load attention from the live household — same payload for Home, CLI, MCP. */
 export function collectAttention(db: Database.Database): AttentionItem[] {
   const accounts = listAccounts(db);
-  const forecast = computeSolvencyForecast(accounts, listObligations(db));
+  const forecast = computeSolvencyForecast(
+    accounts,
+    listObligations(db),
+    30,
+    listIncomeStreams(db),
+  );
   return buildAttention({
     overdueUsd: forecast.overdueUsd,
     pendingTransfers: countPendingTransferProposals(db),
@@ -205,6 +228,9 @@ export function collectAttention(db: Database.Database): AttentionItem[] {
       .filter((a) => a.syncStatus === "error")
       .map((a) => ({ name: a.name })),
     achPending: listTransferProposals(db, { status: "ach_pending" }).length,
+    // Setup gaps only while the wizard is unfinished — after complete-setup,
+    // leftovers live on /app/setup, not the Home strip (healthy → empty).
+    setupGaps: isSetupComplete(db) ? [] : listSetupGaps(db),
   });
 }
 

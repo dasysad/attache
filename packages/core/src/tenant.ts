@@ -20,7 +20,7 @@ export interface Member {
   id: string;
   tenantId: string;
   displayName: string;
-  kind: "account_holder" | "shadow" | "linked_external";
+  kind: "account_holder" | "partner" | "dependent" | "other" | "shadow" | "linked_external";
   authLevel: "none" | "view_only" | "full";
   createdAt: string;
 }

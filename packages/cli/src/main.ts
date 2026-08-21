@@ -73,6 +73,14 @@ import {
   confirmAssetHint,
   deleteHouseholdAsset,
   listHouseholdEntities,
+  getSetupCoverage,
+  listMembers,
+  addMember,
+  removeMember,
+  listIncomeStreams,
+  createIncomeStream,
+  deleteIncomeStream,
+  getStatementRegister,
   setTransactionCategory,
   pollGmailIngest,
   pollImapIngest,
@@ -177,6 +185,22 @@ async function main(): Promise<void> {
   }
   if (cmd === "entities") {
     await entitiesCommand(sub);
+    return;
+  }
+  if (cmd === "setup") {
+    await setupCommand(sub);
+    return;
+  }
+  if (cmd === "members") {
+    await membersCommand(sub, rest);
+    return;
+  }
+  if (cmd === "income") {
+    await incomeCommand(sub, rest);
+    return;
+  }
+  if (cmd === "statements") {
+    await statementsCommand(sub);
     return;
   }
   if (cmd === "cashflow") {
@@ -1492,6 +1516,167 @@ async function entitiesCommand(sub: string | undefined): Promise<void> {
   }
 }
 
+async function setupCommand(sub: string | undefined): Promise<void> {
+  const db = await openCliDatabase();
+  try {
+    if (!isOnboarded(db)) {
+      console.error("Not onboarded — run: attache onboard --household <name> --holder <name>");
+      process.exit(1);
+    }
+    if (sub === "complete") {
+      markSetupComplete(db);
+      console.log(JSON.stringify({ ok: true, ...getSetupCoverage(db) }, null, 2));
+      return;
+    }
+    if (sub && sub !== "status" && sub !== "list") {
+      console.error("Usage: attache setup status|complete");
+      process.exit(1);
+    }
+    console.log(JSON.stringify(getSetupCoverage(db), null, 2));
+  } finally {
+    db.close();
+  }
+}
+
+async function membersCommand(
+  sub: string | undefined,
+  args: string[],
+): Promise<void> {
+  const db = await openCliDatabase();
+  try {
+    if (!isOnboarded(db)) {
+      console.error("Not onboarded — run: attache onboard --household <name> --holder <name>");
+      process.exit(1);
+    }
+    const verb = !sub || sub.startsWith("--") ? "list" : sub;
+    const flagArgs = !sub || sub.startsWith("--") ? [sub, ...args].filter(Boolean) as string[] : args;
+    if (verb === "list") {
+      const members = listMembers(db);
+      console.log(JSON.stringify({ count: members.length, members }, null, 2));
+      return;
+    }
+    if (verb === "add") {
+      const flags = parseFlags(flagArgs);
+      if (!flags.name || !flags.kind) {
+        console.error(
+          "Usage: attache members add --name <n> --kind partner|dependent|other",
+        );
+        process.exit(1);
+      }
+      try {
+        const member = addMember(db, {
+          displayName: flags.name,
+          kind: flags.kind,
+        });
+        console.log(JSON.stringify({ ok: true, member }, null, 2));
+      } catch (e) {
+        console.error(e instanceof Error ? e.message : e);
+        process.exit(1);
+      }
+      return;
+    }
+    if (verb === "remove") {
+      const id = flagArgs[0];
+      if (!id || id.startsWith("--")) {
+        console.error("Usage: attache members remove <id>");
+        process.exit(1);
+      }
+      try {
+        removeMember(db, id);
+        console.log(JSON.stringify({ ok: true, id }, null, 2));
+      } catch (e) {
+        console.error(e instanceof Error ? e.message : e);
+        process.exit(1);
+      }
+      return;
+    }
+    console.error("Usage: attache members list|add|remove");
+    process.exit(1);
+  } finally {
+    db.close();
+  }
+}
+
+async function incomeCommand(
+  sub: string | undefined,
+  args: string[],
+): Promise<void> {
+  const db = await openCliDatabase();
+  try {
+    if (!isOnboarded(db)) {
+      console.error("Not onboarded — run: attache onboard --household <name> --holder <name>");
+      process.exit(1);
+    }
+    const verb = !sub || sub.startsWith("--") ? "list" : sub;
+    const flagArgs = !sub || sub.startsWith("--") ? [sub, ...args].filter(Boolean) as string[] : args;
+    if (verb === "list") {
+      const streams = listIncomeStreams(db);
+      console.log(JSON.stringify({ count: streams.length, streams }, null, 2));
+      return;
+    }
+    if (verb === "create") {
+      const flags = parseFlags(flagArgs);
+      const amount = flags.amount ? Number(flags.amount) : NaN;
+      if (!flags.label || !flags.next || !Number.isFinite(amount)) {
+        console.error(
+          "Usage: attache income create --label <n> --amount <usd> --next YYYY-MM-DD [--cadence once|monthly|yearly] [--member <id>]",
+        );
+        process.exit(1);
+      }
+      try {
+        const stream = createIncomeStream(db, {
+          label: flags.label,
+          amountUsd: amount,
+          nextDate: flags.next,
+          cadence: flags.cadence,
+          memberId: flags.member,
+        });
+        console.log(JSON.stringify({ ok: true, stream }, null, 2));
+      } catch (e) {
+        console.error(e instanceof Error ? e.message : e);
+        process.exit(1);
+      }
+      return;
+    }
+    if (verb === "delete") {
+      const id = flagArgs[0];
+      if (!id || id.startsWith("--")) {
+        console.error("Usage: attache income delete <id>");
+        process.exit(1);
+      }
+      try {
+        deleteIncomeStream(db, id);
+        console.log(JSON.stringify({ ok: true, id }, null, 2));
+      } catch (e) {
+        console.error(e instanceof Error ? e.message : e);
+        process.exit(1);
+      }
+      return;
+    }
+    console.error("Usage: attache income list|create|delete");
+    process.exit(1);
+  } finally {
+    db.close();
+  }
+}
+
+async function statementsCommand(sub: string | undefined): Promise<void> {
+  const db = await openCliDatabase();
+  try {
+    if (!isOnboarded(db)) {
+      console.error("Not onboarded — run: attache onboard --household <name> --holder <name>");
+      process.exit(1);
+    }
+    if (sub && sub !== "list") {
+      console.error("Usage: attache statements list");
+      process.exit(1);
+    }
+    console.log(JSON.stringify(getStatementRegister(db), null, 2));
+  } finally {
+    db.close();
+  }
+}
+
 async function cashflowCommand(args: string[]): Promise<void> {
   const db = await openCliDatabase();
   try {
@@ -1923,6 +2108,10 @@ Commands:
   attache assets confirm <eventId>      HITL home/vehicle hint from discover
   attache assets delete <id>
   attache entities list                 Payee / institution names (not a CRM)
+  attache setup status|complete         Coverage checklist (skippable gaps)
+  attache members list|add|remove       Household people (roles, not mesh auth)
+  attache income list|create|delete     Recurring income streams
+  attache statements list               Statement events + connect hints
   attache cashflow [--from d] [--to d]  Posted spend by category (default 30d)
   attache cashflow trend [--from d] [--to d]  vs prior equal-length window
   attache obligations list

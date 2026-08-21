@@ -1,8 +1,8 @@
 /**
- * 30-day solvency forecast — manual accounts + obligation schedule.
+ * 30-day solvency forecast — accounts + obligations + optional income streams.
  *
  * Runway = days until projected balance goes negative within the horizon.
- * Recurrence expands monthly/yearly anchors into due dates inside the window.
+ * Income adds to balance before obligations subtract (same calendar day).
  */
 import type {
   FundingAccount,
@@ -12,6 +12,10 @@ import type {
   SolvencyForecast,
 } from "./domain.js";
 import { isLiquidKind } from "./account.js";
+import {
+  expandIncomeStream,
+  type IncomeStream,
+} from "./income-stream.js";
 
 const MS_DAY = 86_400_000;
 
@@ -113,6 +117,7 @@ export function computeSolvencyForecast(
   accounts: FundingAccount[],
   obligations: Obligation[],
   horizonDays = 30,
+  incomeStreams: IncomeStream[] = [],
 ): SolvencyForecast {
   const today = startOfTodayUtc();
   const end = addDays(today, horizonDays - 1);
@@ -132,6 +137,16 @@ export function computeSolvencyForecast(
     dueByDate.set(occ.date, (dueByDate.get(occ.date) ?? 0) + occ.amountUsd);
   }
 
+  const incomeByDate = new Map<string, number>();
+  for (const stream of incomeStreams) {
+    for (const occ of expandIncomeStream(stream, today, end)) {
+      incomeByDate.set(
+        occ.date,
+        (incomeByDate.get(occ.date) ?? 0) + occ.amountUsd,
+      );
+    }
+  }
+
   const series = [];
   let balance = liquidBalanceUsd;
   let runwayDays = horizonDays;
@@ -140,6 +155,8 @@ export function computeSolvencyForecast(
     const day = addDays(today, i);
     const iso = formatIsoDate(day);
     const due = dueByDate.get(iso) ?? 0;
+    const income = incomeByDate.get(iso) ?? 0;
+    balance += income;
     balance -= due;
     series.push({ date: iso, balanceUsd: balance, obligationsDueUsd: due });
     if (balance < 0 && runwayDays === horizonDays) {

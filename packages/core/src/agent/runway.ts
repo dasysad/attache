@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import type { SolvencyForecast } from "../domain.js";
 import { listAccounts } from "../account.js";
+import { listIncomeStreams } from "../income-stream.js";
 import { listObligations } from "../obligation.js";
 import { computeSolvencyForecast } from "../forecast.js";
 import { getTenant, isOnboarded } from "../tenant.js";
@@ -30,6 +31,7 @@ export function getRunwaySnapshot(
     listAccounts(db),
     listObligations(db),
     horizonDays,
+    listIncomeStreams(db),
   );
   return {
     tenantName: tenant.name,

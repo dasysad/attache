@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import type { FundingAccount, SolvencyForecast } from "../domain.js";
 import { listAccounts } from "../account.js";
+import { listIncomeStreams } from "../income-stream.js";
 import { listObligations } from "../obligation.js";
 import { computeSolvencyForecast } from "../forecast.js";
 import { isOnboarded } from "../tenant.js";
@@ -64,7 +65,12 @@ export function proposeTransfer(
   if (input.toAccountId && !to) throw new Error("to account not found");
   if (to && to.id === from.id) throw new Error("from and to account must differ");
 
-  const before = computeSolvencyForecast(accounts, obligations, horizon);
+  const before = computeSolvencyForecast(
+    accounts,
+    obligations,
+    horizon,
+    listIncomeStreams(db),
+  );
   const blockers: string[] = [];
   const warnings: string[] = [];
 
@@ -75,7 +81,12 @@ export function proposeTransfer(
   }
 
   const simAccounts = simulateTransfer(accounts, from.id, to?.id, input.amountUsd);
-  const after = computeSolvencyForecast(simAccounts, obligations, horizon);
+  const after = computeSolvencyForecast(
+    simAccounts,
+    obligations,
+    horizon,
+    listIncomeStreams(db),
+  );
 
   if (!to && after.liquidBalanceUsd < before.liquidBalanceUsd) {
     warnings.push("Outbound transfer reduces household liquid balance");

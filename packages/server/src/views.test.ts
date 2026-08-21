@@ -61,6 +61,9 @@ describe("layout IA (ADR-014)", () => {
     expect(html).toContain(">Alerts<");
     expect(html).toContain("<summary>Connect</summary>");
     expect(html).toContain("<summary>More</summary>");
+    expect(html).toContain("/app/setup");
+    expect(html).toContain("/app/people");
+    expect(html).toContain("/app/income");
     expect(html).toContain("/app/net-worth");
     expect(html).toContain("/app/cashflow");
     expect(html).not.toMatch(/<nav>[\s\S]*href="\/app\/plaid">Plaid</);
@@ -282,6 +285,8 @@ describe("netWorthPage + cashflowPage", () => {
       netUsd: 0,
       uncategorizedCount: 0,
       buckets: [],
+      plannedIncomeUsd: 0,
+      plannedObligationsUsd: 0,
     };
     const html = cashflowPage(empty);
     expect(html).toContain("do not invent a Sankey");
@@ -299,6 +304,8 @@ describe("netWorthPage + cashflowPage", () => {
       netUsd: 0,
       uncategorizedCount: 0,
       buckets: [],
+      plannedIncomeUsd: 0,
+      plannedObligationsUsd: 0,
     };
     const trend: CashflowTrend = {
       current: empty,

@@ -137,6 +137,40 @@ export {
   SETUP_WIZARD_LABELS,
 } from "./setup.js";
 export {
+  getSetupCoverage,
+  listSetupGaps,
+  type SetupCoverage,
+  type SetupCoverageItem,
+  type SetupCoverageId,
+} from "./setup-coverage.js";
+export {
+  listMembers,
+  getMember,
+  addMember,
+  removeMember,
+  parseMemberKind,
+  type HouseholdMember,
+  type MemberKind,
+  type MemberAuthLevel,
+} from "./member.js";
+export {
+  listIncomeStreams,
+  getIncomeStream,
+  createIncomeStream,
+  deleteIncomeStream,
+  expandIncomeStream,
+  sumIncomeInRange,
+  type IncomeStream,
+  type IncomeCadence,
+  type IncomeOccurrence,
+} from "./income-stream.js";
+export {
+  listStatementEvents,
+  getStatementRegister,
+  type StatementListItem,
+  type StatementRegister,
+} from "./statements.js";
+export {
   getVault,
   LocalVaultPort,
   setVaultForTests,

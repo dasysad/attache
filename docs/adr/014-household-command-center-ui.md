@@ -81,12 +81,19 @@ Firefly’s customizable dashboard.
 | **Investments** | `/app/snaptrade` | Read-only positions / sync | Monarch complaint: shallow — **do not overbuild** |
 | **Pricing / Costs** | `/pricing`, `/app/costs` | Honest receipts (ADR-006) | Demote to footer / More |
 | **Net worth** | `/app/net-worth` | Liquid + invested − credit/loan | More overflow — not a Monarch dashboard |
-| **Cash flow** | `/app/cashflow` | Posted spend by Plaid category | More overflow — bars, not Sankey |
+| **Cash flow** | `/app/cashflow` | Posted spend + planned income vs bills | More overflow — bars, not Sankey |
+| **Setup** | `/app/setup` | Coverage checklist (skippable gaps) | Not a Mint gate |
+| **People** | `/app/people` | Household members (roles, not mesh auth) | Thin register |
+| **Assets** | `/app/assets` | Home / vehicle estimates | Thin; not a DMS |
+| **Entities** | `/app/entities` | Payee / institution names (projection) | Not a CRM |
+| **Income** | `/app/income` | Recurring income streams | Manual first |
+| **Statements** | `/app/statements` | Statement-class ingest + connect hints | Not a document vault |
 | **Vault** | `/vault/unlock` | Encryption status when locked | Unique |
 
 Primary nav (human daily): **Home · Accounts · Bills · Activity · Transfers · Alerts**.
 
-Overflow: **Connect** (Plaid / SnapTrade / Ingest) and **More** (Pricing / Costs / Net worth / Cash flow).
+Overflow: **Connect** (Plaid / SnapTrade / Ingest) and **More** (Setup / People /
+Assets / Entities / Income / Statements / Pricing / Costs / Net worth / Cash flow).
 
 ### Features we will ship (phased)
 
@@ -96,6 +103,7 @@ Overflow: **Connect** (Plaid / SnapTrade / Ingest) and **More** (Pricing / Costs
 | **P1** | Activity filters (account, pending, date); per-account register; SnapTrade positions on Investments (read-only, not a Bloomberg); Lens tokens (themes, borders, fonts) |
 | **P2** | ✅ Net worth (assets − liabilities) with `credit`/`loan` kinds; cash-flow by existing Plaid `category`; recategorize via CLI/MCP. Honest empty — no Sankey. |
 | **P3** | ✅ Spending trends (current vs prior equal-length window + daily outflow). No Sankey. Mesh household view still parked (BL-1). |
+| **P4+** | Household basics before automation — [vs-ui-household-basics.md](../plans/vs-ui-household-basics.md): setup checklist, register lists, people, income streams, cashflow inflows. **Rules / ACH UI deferred** until basics dogfood. |
 
 ### Explicit non-goals
 
@@ -126,6 +134,8 @@ Overflow: **Connect** (Plaid / SnapTrade / Ingest) and **More** (Pricing / Costs
 - P2 shipped liability kinds + category cash-flow. Empty charts stay forbidden;
   `/app/net-worth` and `/app/cashflow` sit under More, not primary nav.
 - P3 is period-over-period spend, not a Sankey and not a mesh couples view.
+- P4+ prioritizes setup completeness and registers over automation UI
+  ([vs-ui-household-basics.md](../plans/vs-ui-household-basics.md)).
 
 ## Implementation plan
 

@@ -4,35 +4,32 @@
 
 Mesh is **backlog** — see [docs/backlog.md](docs/backlog.md).
 
-## Current sprint: post transfer-rules P1 follow-ons
+## Current sprint: household basics before automation (UI P4+)
 
 Discovery onboard and BL-6 / BL-7 / BL-8 P0 are shipped. **BL-7 P2** assisted
 credential change shipped. **BL-12 transfer rules** shipped through P1 (CEL
 `when` + launchd/cron). **ACH webhooks** (ADR-013 P2) shipped. Mobile companion
-skipped. Mesh parked.
-Next pull: **SendGrid inbound** (BYO, symmetric to Mailgun) — see
-[next-backlog-order.md](docs/plans/next-backlog-order.md).
+skipped. Mesh parked. **SendGrid parked.**
+
+Next pull: **household basics UI** — setup checklist, register lists, people,
+income, cashflow inflows — before rules/ACH web surfaces. See
+[vs-ui-household-basics.md](docs/plans/vs-ui-household-basics.md).
 
 | Doc | Purpose |
 |-----|---------|
+| [vs-ui-household-basics.md](docs/plans/vs-ui-household-basics.md) | Setup → lists → income → cashflow; automation UI deferred |
+| [ADR-014](docs/adr/014-household-command-center-ui.md) | Command center IA |
 | [ADR-017](docs/adr/017-transfer-rules-typed-local-policies.md) | Typed local policies; CEL when + schedule |
-| [vs-transfer-rules.md](docs/plans/vs-transfer-rules.md) | P0+P1 acceptance |
+| [vs-transfer-rules.md](docs/plans/vs-transfer-rules.md) | P0+P1 acceptance (agent-first; UI deferred) |
 | [ADR-013](docs/adr/013-licensed-ach-rail.md) | ACH rail + webhooks |
-| [vs-android-fcm.md](docs/plans/vs-android-fcm.md) | BL-6 P0 device register + FCM port |
-| [vs-credential-hygiene.md](docs/plans/vs-credential-hygiene.md) | BL-7 P0+P2 |
 | [vs-hosted-mail-ingress.md](docs/plans/vs-hosted-mail-ingress.md) | BL-8 P0 BYO Mailgun |
 
 ```bash
-attache ingest discover-sandbox
-attache ingest confirm <eventId>
-attache assets confirm <eventId>
-attache assets create --kind home --label "123 Main" [--estimate 450000]
+attache setup status
+attache members add --name Jordan --kind partner
+attache income create --label Payroll --amount 5000 --cadence monthly --next 2026-09-01
+attache assets list
 attache entities list
-attache obligations create --payee Rent --amount 1800 --due 2026-09-01 --cadence monthly
-attache transfer rules create --name Sweep --from <id> --to <id> --amount 200 \
-  --when 'liquidBalanceUsd >= 1000.0'
-attache transfer rules evaluate
-attache transfer rules schedule install
 ```
 
 ## Encryption at rest (VS-8 / ADR-011)
@@ -322,8 +319,9 @@ attache ingest ingress-status
 MCP: `ingest_ingress_status`. Attache does not operate SMTP.
 See [vs-hosted-mail-ingress.md](docs/plans/vs-hosted-mail-ingress.md).
 
-Next backlog: Mesh parked. Mobile companion skipped. **SendGrid inbound** next —
-see [next-backlog-order.md](docs/plans/next-backlog-order.md).
+Next backlog: Mesh parked. Mobile companion skipped. SendGrid parked.
+**Household basics UI** next — rules/ACH web deferred — see
+[vs-ui-household-basics.md](docs/plans/vs-ui-household-basics.md).
 
 ## Dev
 
