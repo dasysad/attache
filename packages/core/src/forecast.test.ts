@@ -116,6 +116,8 @@ describe("computeSolvencyForecast", () => {
     const f = computeSolvencyForecast(accounts, obligations, 30);
     expect(f.runwayDays).toBe(30);
     expect(f.liquidBalanceUsd).toBe(10_000);
+    expect(f.plannedIncomeUsd).toBe(0);
+    expect(f.hasIncomeStreams).toBe(false);
   });
 
   it("detects insolvency within horizon", () => {

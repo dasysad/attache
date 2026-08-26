@@ -38,6 +38,8 @@ describe("VS-5 agent tools", () => {
     expect(snap.tenantName).toBe("Test Home");
     expect(snap.liquidBalanceUsd).toBe(15000);
     expect(snap.runwayDays).toBe(30);
+    expect(snap.plannedIncomeUsd).toBe(0);
+    expect(snap.hasIncomeStreams).toBe(false);
     db.close();
   });
 

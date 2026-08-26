@@ -14,6 +14,8 @@ export interface RunwaySnapshot {
   horizonDays: number;
   dueIn7dUsd: number;
   overdueUsd: number;
+  plannedIncomeUsd: number;
+  hasIncomeStreams: boolean;
   upcomingCount: number;
 }
 
@@ -46,6 +48,8 @@ function summarizeForecast(forecast: SolvencyForecast): Omit<RunwaySnapshot, "te
     horizonDays: forecast.horizonDays,
     dueIn7dUsd: forecast.dueIn7dUsd,
     overdueUsd: forecast.overdueUsd,
+    plannedIncomeUsd: forecast.plannedIncomeUsd,
+    hasIncomeStreams: forecast.hasIncomeStreams,
     upcomingCount: forecast.upcoming.length,
   };
 }

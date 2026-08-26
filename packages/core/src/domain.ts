@@ -111,6 +111,13 @@ export interface SolvencyForecast {
   horizonDays: number;
   dueIn7dUsd: number;
   overdueUsd: number;
+  /**
+   * Sum of income_stream occurrences in [today, today+horizonDays).
+   * Zero when no streams — Home helper should say “add income”, not fake payroll.
+   */
+  plannedIncomeUsd: number;
+  /** True when at least one income_stream row exists (even if none fall in horizon). */
+  hasIncomeStreams: boolean;
   series: ForecastDay[];
   upcoming: ObligationOccurrence[];
 }

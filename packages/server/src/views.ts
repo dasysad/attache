@@ -751,6 +751,16 @@ export function appHomePage(
       helper="${liquidCount} cash account${liquidCount === 1 ? "" : "s"}"></att-stat>
     ${brokerageStat}
     ${netWorthStat}
+    <att-stat label="Planned income" value="${
+      forecast.hasIncomeStreams
+        ? `$${moneyUsd(forecast.plannedIncomeUsd)}`
+        : "—"
+    }"
+      helper="${
+        forecast.hasIncomeStreams
+          ? `${forecast.horizonDays}d income streams`
+          : "Add payroll on Income"
+      }"></att-stat>
     <att-stat label="Due in 7d" value="$${forecast.dueIn7dUsd.toFixed(2)}"
       tone="${dueTone}"></att-stat>
     <att-stat label="Overdue" value="$${forecast.overdueUsd.toFixed(2)}"

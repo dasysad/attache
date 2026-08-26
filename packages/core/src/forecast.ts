@@ -185,12 +185,19 @@ export function computeSolvencyForecast(
 
   const upcoming = occurrences.filter((o) => o.status !== "paid").slice(0, 20);
 
+  let plannedIncomeUsd = 0;
+  for (const amount of incomeByDate.values()) {
+    plannedIncomeUsd += amount;
+  }
+
   return {
     liquidBalanceUsd,
     runwayDays,
     horizonDays,
     dueIn7dUsd,
     overdueUsd,
+    plannedIncomeUsd,
+    hasIncomeStreams: incomeStreams.length > 0,
     series,
     upcoming,
   };

@@ -23,6 +23,8 @@ const emptyForecast: SolvencyForecast = {
   horizonDays: 30,
   dueIn7dUsd: 0,
   overdueUsd: 0,
+  plannedIncomeUsd: 0,
+  hasIncomeStreams: false,
   series: [],
   upcoming: [],
 };
@@ -90,6 +92,28 @@ describe("appHomePage", () => {
     expect(html).not.toContain("attention-strip");
     expect(html).toContain("No accounts yet");
     expect(html).toContain("No upcoming bills");
+    expect(html).toContain('label="Planned income"');
+    expect(html).toContain("Add payroll on Income");
+  });
+
+  it("shows planned income amount when streams exist", () => {
+    const html = appHomePage(
+      "Smith",
+      "site-id-xxx",
+      {
+        ...emptyForecast,
+        liquidBalanceUsd: 100,
+        plannedIncomeUsd: 5000,
+        hasIncomeStreams: true,
+      },
+      [account({ id: "c", name: "Checking", kind: "checking", balanceUsd: 100 })],
+      [],
+      [],
+    );
+    expect(html).toContain('label="Planned income"');
+    expect(html).toContain("$5,000.00");
+    expect(html).toContain("30d income streams");
+    expect(html).not.toContain("Add payroll on Income");
   });
 
   it("renders attention items and groups brokerage separately", () => {

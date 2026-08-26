@@ -1,6 +1,6 @@
 # Vertical slice — Household basics before automation (UI P4+)
 
-**Status:** ✅ Phases A–D shipped (automation UI deferred — Phase E)  
+**Status:** ✅ Phases A–D + F shipped (automation UI deferred — Phase E)  
 **Parent:** [ADR-014](../adr/014-household-command-center-ui.md), [ADR-015](../adr/015-discovery-onboard.md)  
 **Date:** 2026-08-20
 
@@ -11,7 +11,7 @@ income, cashflow with inflows) before projecting rules / ACH / heuristics onto
 the web. CLI/MCP and web ship together each phase. Automation UI is Phase E.
 
 ```text
-Setup checklist → Register lists → People + income → Cashflow in/out → (later) rules UI
+Setup checklist → Register lists → People + income → Cashflow in/out → Home income stat → (later) rules UI
 ```
 
 ## Explicitly deferred (Phase E)
@@ -44,8 +44,17 @@ Polish empty CTAs on Accounts / Bills.
 ## Phase D — Cashflow with inflows
 
 Forecast/runway apply income streams. Cashflow CLI/MCP/web show planned income
-vs obligation outflows alongside posted bank category spend. Home stats include
-income this period.
+vs obligation outflows alongside posted bank category spend.
+
+## Phase F — Home solvency stats (next UI pull)
+
+**Status:** ✅ shipped
+
+Home shows **Planned income** beside due-in-7d / overdue. Domain:
+`SolvencyForecast.plannedIncomeUsd` + `hasIncomeStreams` (same as
+`get_runway` / MCP). Empty streams → value `—` and helper “Add payroll on
+Income” (not a fake $0). Horizon matches runway (default 30d).
+
 
 ## Dogfood
 

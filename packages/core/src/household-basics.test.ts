@@ -98,6 +98,10 @@ describe("household basics (UI P4+)", () => {
       listIncomeStreams(db),
     );
     expect(withInc.runwayDays).toBeGreaterThan(without.runwayDays);
+    expect(withInc.hasIncomeStreams).toBe(true);
+    expect(withInc.plannedIncomeUsd).toBeGreaterThanOrEqual(5000);
+    expect(without.hasIncomeStreams).toBe(false);
+    expect(without.plannedIncomeUsd).toBe(0);
     const cf = computeCashflow(db);
     expect(cf.plannedIncomeUsd).toBeGreaterThan(0);
     deleteIncomeStream(db, listIncomeStreams(db)[0]!.id);
