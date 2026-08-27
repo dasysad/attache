@@ -4,16 +4,21 @@
 
 Mesh is **backlog** — see [docs/backlog.md](docs/backlog.md).
 
-## Current sprint: household basics before automation (UI P4+)
+## Current sprint: household basics dogfood → automation UI deferred
 
 Discovery onboard and BL-6 / BL-7 / BL-8 P0 are shipped. **BL-7 P2** assisted
 credential change shipped. **BL-12 transfer rules** shipped through P1 (CEL
-`when` + launchd/cron). **ACH webhooks** (ADR-013 P2) shipped. Mobile companion
-skipped. Mesh parked. **SendGrid parked.**
+`when` + launchd/cron). **ACH webhooks** (ADR-013 P2) shipped. **Household
+basics UI** (setup hub, register lists, people, income, cashflow, Home planned
+income) shipped. Mobile companion skipped. Mesh parked. **SendGrid parked.**
 
-Next pull: **household basics UI** — setup checklist, register lists, people,
-income, cashflow inflows — before rules/ACH web surfaces. See
+Next pull: **dogfood ladder** then rules/ACH web surfaces (Phase E). See
 [vs-ui-household-basics.md](docs/plans/vs-ui-household-basics.md).
+
+```bash
+./scripts/household-basics-ladder.sh   # clean ATTACHE_DATA_DIR walk
+attache setup status                   # web lands on /app/setup after onboard
+```
 
 | Doc | Purpose |
 |-----|---------|

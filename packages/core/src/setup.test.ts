@@ -22,7 +22,7 @@ import {
 import { createTenant } from "./tenant.js";
 import { LocalVaultPort, setVaultForTests } from "./vault/local-vault.js";
 
-describe("setup wizard ADR-015 P3", () => {
+describe("setup hub (ADR-015 + vs-ui-household-basics)", () => {
   let dataDir: string;
   let vaultDir: string;
 
@@ -39,91 +39,65 @@ describe("setup wizard ADR-015 P3", () => {
     return { db };
   }
 
-  it("routes new tenant to discover first (not account)", () => {
+  it("routes new tenant to setup hub (not linear discover)", () => {
     const { db } = setup();
     expect(isSetupComplete(db)).toBe(false);
-    expect(setupWizardPath(db)).toBe("/onboard/discover");
+    expect(setupWizardPath(db)).toBe("/app/setup");
     expect(setupWizardStepNumber("/onboard/discover")).toBe(2);
     db.close();
   });
 
-  it("skipping discover without Gmail goes to manual account (negative: mail not required)", () => {
+  it("stays on hub until explicit complete (negative: gaps do not auto-finish)", () => {
     const { db } = setup();
     markSetupDiscoverDone(db);
     expect(isSetupDiscoverDone(db)).toBe(true);
-    expect(setupWizardPath(db)).toBe("/onboard/account");
-    expect(setupAllowedAppPaths(db)).toContain("/app/plaid");
-    expect(setupAllowedAppPaths(db)).toContain("/app/ingest");
-    expect(setupAllowedAppPaths(db)).toContain("/onboard/discover");
-    db.close();
-  });
-
-  it("routes tenant with account to obligation after discover is done", () => {
-    const { db } = setup();
-    markSetupDiscoverDone(db);
-    createAccount(db, { name: "Checking", balanceUsd: 1000 });
-    expect(setupWizardPath(db)).toBe("/onboard/obligation");
-    db.close();
-  });
-
-  it("skips obligation step when a bill already exists", () => {
-    const { db } = setup();
-    markSetupDiscoverDone(db);
+    expect(setupWizardPath(db)).toBe("/app/setup");
     createAccount(db, { name: "Checking", balanceUsd: 1000 });
     createObligation(db, {
       payee: "Rent",
       amountUsd: 10,
       dueDate: "2099-01-01",
     });
-    expect(setupWizardPath(db)).toBeNull();
     maybeMarkSetupComplete(db);
-    expect(isSetupComplete(db)).toBe(true);
+    expect(isSetupComplete(db)).toBe(false);
+    expect(setupWizardPath(db)).toBe("/app/setup");
     db.close();
   });
 
-  it("returns null when setup complete even without accounts", () => {
+  it("returns null when setup marked complete even without accounts", () => {
     const { db } = setup();
     markSetupComplete(db);
     expect(setupWizardPath(db)).toBeNull();
     db.close();
   });
 
-  it("allows My Accounts, Plaid, Inbox while obligation step is pending", () => {
+  it("allows all app routes while hub is open (negative: no bounce off Plaid)", () => {
     const { db } = setup();
-    markSetupDiscoverDone(db);
-    createAccount(db, { name: "Checking", balanceUsd: 1000 });
     const allowed = setupAllowedAppPaths(db);
-    expect(allowed).toContain("/app/accounts");
     expect(allowed).toContain("/app/plaid");
-    expect(allowed).toContain("/app/connections");
     expect(allowed).toContain("/app/ingest");
-    expect(allowed).toContain("/onboard/obligation");
+    expect(allowed).toContain("/onboard/discover");
+    expect(allowed).toContain("/app/accounts");
+    expect(allowed).toContain("/app/obligations");
     db.close();
   });
 
-  it("allows Plaid before any account (Plaid-first)", () => {
-    const { db } = setup();
-    expect(setupAllowedAppPaths(db)).toContain("/app/plaid");
-    db.close();
-  });
-
-  it("shows connect step after sandbox discover until hints are skipped (negative: no auto-Link)", async () => {
+  it("discover accelerators do not change hub path (negative: no auto-Link routing)", async () => {
     const { db } = setup();
     vaultDir = mkdtempSync(join(tmpdir(), "attache-setup-vault-"));
     const vault = new LocalVaultPort(vaultDir, null);
     setVaultForTests(vault);
     await discoverMailCandidates(db, vault, createDocumentAdapter(), { sandbox: true });
     markSetupDiscoverDone(db);
-    expect(setupWizardPath(db)).toBe("/onboard/connect");
-    expect(setupWizardPath(db)).not.toBe("/app/accounts");
+    expect(setupWizardPath(db)).toBe("/app/setup");
     markSetupConnectHintsDone(db);
-    expect(setupWizardPath(db)).toBe("/onboard/account");
+    expect(setupWizardPath(db)).toBe("/app/setup");
     db.close();
   });
 
-  it("names optional discover after onboard; --complete-setup skips it (negative)", () => {
-    expect(setupOnboardNextHint("cli", false)).toContain("ingest discover-sandbox");
-    expect(setupOnboardNextHint("mcp", false)).toContain("ingest_discover");
+  it("names setup status after onboard; --complete-setup skips hub (negative)", () => {
+    expect(setupOnboardNextHint("cli", false)).toContain("setup status");
+    expect(setupOnboardNextHint("mcp", false)).toContain("setup_status");
     expect(setupOnboardNextHint("cli", true)).not.toContain("discover");
     expect(setupOnboardNextHint("mcp", true)).toBe(
       "create_account or plaid_connect_sandbox",

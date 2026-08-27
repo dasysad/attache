@@ -77,30 +77,32 @@ start Link** — never silent.
 3. Hint still never creates a funding account by itself (P1 + P2 tests).
 4. After a matching Plaid/SnapTrade institution is linked, that hint hides.
 
-## P3 — wizard as projection (shipped)
+## P3 — wizard as projection (shipped; hub collapse)
 
-`/onboard` steps: household → **discover (skip)** → **connect hints (skip)**
-→ account if still none → obligation if still none → Home.
+Web onboard: household name → **`/app/setup` checklist hub**. Linear
+`/onboard/*` steps remain as **optional accelerators** (find mail, connect hints,
+quick account, quick bill) — not forced redirects.
 
-`setupWizardPath` / `setupAllowedAppPaths` keep Accounts, Connect, Ingest
-reachable. `--complete-setup` still skips the rest.
+`setupWizardPath` returns `/app/setup` until explicit complete
+(`--complete-setup`, Mark setup complete, or obligation Skip). App routes stay
+open; only Home redirects to the hub.
 
-Web is buttons on the same JSON as `ingest discover` (`listDiscoverCandidates`
+Web accelerators use the same JSON as `ingest discover` (`listDiscoverCandidates`
 on GET — **no poll**). POST `/onboard/discover-sandbox` / `discover/run` calls
 `discoverMailCandidates`. Confirm bills via `confirmBillIngest`. Connect step
 reuses `connectHintsPanel`. No SPA rewrite.
 
-CLI/MCP `onboard` `next` names `ingest discover-sandbox` / `ingest_discover`
-unless `--complete-setup` / `completeSetup`.
+CLI/MCP `onboard` `next` names `setup status` + optional discover unless
+`--complete-setup` / `completeSetup`.
 
 ### Acceptance (met)
 
-1. After household create, web lands on `/onboard/discover`, not account.
-2. Skip discover without Gmail → `/onboard/account` (mail never required).
-3. Sandbox discover → connect step until hints are skipped; Link is still a click.
+1. After household create, web lands on `/app/setup`, not a forced discover step.
+2. Skip discover without Gmail → back to setup hub (mail never required).
+3. Sandbox discover → connect accelerator until hints are skipped; Link is still a click.
 4. GET discover does not poll Gmail; statements are not confirm-as-bill buttons.
-5. `--complete-setup` still skips the wizard (`setupWizardPath` null).
-6. Confirmed bills skip the typed-obligation step once an account exists.
+5. `--complete-setup` still skips the hub (`setupWizardPath` null).
+6. Confirmed bills and manual accounts do not auto-mark setup complete.
 
 ## P4 — entities and asset hints (thin) (shipped)
 

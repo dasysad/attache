@@ -1,14 +1,11 @@
 import type Database from "better-sqlite3";
-import { listAccounts } from "./account.js";
-import { listUnsatisfiedConnectHints } from "./ingest/discover.js";
-import { listObligations } from "./obligation.js";
 import { isOnboarded } from "./tenant.js";
 
 const SETUP_COMPLETE_KEY = "setup_complete";
 const SETUP_DISCOVER_DONE_KEY = "setup_discover_done";
 const SETUP_CONNECT_HINTS_DONE_KEY = "setup_connect_hints_done";
 
-/** ADR-015 P3 — household → find mail → connect hints → account → bill. */
+/** ADR-015 P3 — household → optional accelerators on /app/setup. */
 export const SETUP_WIZARD_TOTAL = 5;
 
 export const SETUP_WIZARD_LABELS = [
@@ -24,7 +21,8 @@ export type SetupWizardPath =
   | "/onboard/discover"
   | "/onboard/connect"
   | "/onboard/account"
-  | "/onboard/obligation";
+  | "/onboard/obligation"
+  | "/app/setup";
 
 function metaIsTrue(db: Database.Database, key: string): boolean {
   const row = db
@@ -40,7 +38,7 @@ function setMetaTrue(db: Database.Database, key: string): void {
   ).run(key);
 }
 
-/** VS-2: first-run wizard finished (skipped or fully filled). */
+/** VS-2: user marked setup complete (--complete-setup, Skip, or setup hub button). */
 export function isSetupComplete(db: Database.Database): boolean {
   return metaIsTrue(db, SETUP_COMPLETE_KEY);
 }
@@ -49,7 +47,7 @@ export function markSetupComplete(db: Database.Database): void {
   setMetaTrue(db, SETUP_COMPLETE_KEY);
 }
 
-/** User skipped or continued past the Gmail discover step (ADR-015). */
+/** User skipped or continued past the Gmail discover accelerator (ADR-015). */
 export function isSetupDiscoverDone(db: Database.Database): boolean {
   return metaIsTrue(db, SETUP_DISCOVER_DONE_KEY);
 }
@@ -70,51 +68,48 @@ export function markSetupConnectHintsDone(db: Database.Database): void {
 }
 
 /**
- * Next setup wizard step, or null when the dashboard is ready.
+ * Next path when setup is unfinished: the checklist hub.
  *
- * Order (ADR-015 P3): discover (skip) → connect hints if any (skip) →
- * account if none → obligation if none. Gmail and Plaid are never required.
- * `--complete-setup` / Skip bills still short-circuit via isSetupComplete.
+ * Why: ADR-015 + vs-ui-household-basics — discover/connect/account/bill are
+ * optional accelerators linked from `/app/setup`, not a forced linear wizard.
+ * `--complete-setup` / explicit mark still short-circuit via isSetupComplete.
  */
 export function setupWizardPath(db: Database.Database): string | null {
   if (!isOnboarded(db)) return "/onboard";
   if (isSetupComplete(db)) return null;
-  if (!isSetupDiscoverDone(db)) return "/onboard/discover";
-  const hints = listUnsatisfiedConnectHints(db);
-  if (!isSetupConnectHintsDone(db) && hints.length > 0) return "/onboard/connect";
-  if (listAccounts(db).length === 0) return "/onboard/account";
-  if (listObligations(db).length === 0) return "/onboard/obligation";
-  return null;
+  return "/app/setup";
 }
 
 /**
- * Persist setup_complete when every skippable step is satisfied.
- * Call after wizard mutations — not inside setupWizardPath (keep that pure).
+ * Legacy hook after accelerator mutations. Hub model does not auto-complete from
+ * coverage gaps — callers use markSetupComplete / --complete-setup explicitly.
  */
-export function maybeMarkSetupComplete(db: Database.Database): void {
-  if (!isOnboarded(db) || isSetupComplete(db)) return;
-  if (setupWizardPath(db) === null) markSetupComplete(db);
+export function maybeMarkSetupComplete(_db: Database.Database): void {
+  // Intentionally empty — setup complete is explicit (ADR-015 friction rules).
 }
 
 /**
- * Paths humans/agents may visit while the optional setup wizard is unfinished.
- * Why: Plaid-first, CLI accounts, and Inbox discover must not bounce off My Accounts.
+ * Paths reachable while setup is unfinished. With the hub model, app routes are
+ * not gated; only Home redirects to `/app/setup`. Kept for CLI/MCP parity tests.
  */
 export function setupAllowedAppPaths(db: Database.Database): string[] {
-  const next = setupWizardPath(db);
-  if (!next) return [];
-  const base = [
+  if (!isOnboarded(db) || isSetupComplete(db)) return [];
+  return [
+    "/app/setup",
     "/app/accounts",
+    "/app/activity",
+    "/app/net-worth",
+    "/app/cashflow",
     "/app/plaid",
     "/app/snaptrade",
     "/app/connections",
     "/app/ingest",
-    "/app/setup",
     "/app/assets",
     "/app/entities",
     "/app/statements",
     "/app/people",
     "/app/income",
+    "/app/obligations",
     "/onboard/discover",
     "/onboard/discover/skip",
     "/onboard/discover/continue",
@@ -124,14 +119,11 @@ export function setupAllowedAppPaths(db: Database.Database): string[] {
     "/onboard/account",
     "/onboard/obligation",
   ];
-  if (!base.includes(next)) base.push(next);
-  return base;
 }
 
 /**
  * Agent-facing next after household create.
- * Why: CLI/MCP must name discover (optional) — not jump straight to accounts —
- * while `--complete-setup` still skips the rest (ADR-015: Gmail/Plaid never required).
+ * Why: CLI/MCP land on setup status — accelerators are optional (ADR-015).
  */
 export function setupOnboardNextHint(
   surface: "cli" | "mcp",
@@ -143,11 +135,11 @@ export function setupOnboardNextHint(
       : "create_account or plaid_connect_sandbox";
   }
   return surface === "cli"
-    ? "attache ingest discover-sandbox (optional) · attache accounts create … · Gmail/Plaid never required"
-    : "ingest_discover { sandbox: true } (optional) or create_account — Gmail/Plaid never required";
+    ? "attache setup status · optional: attache ingest discover-sandbox · Gmail/Plaid never required"
+    : "setup_status · optional: ingest_discover { sandbox: true } — Gmail/Plaid never required";
 }
 
-/** 1-based index for <att-wizard-steps current> (household is 1). */
+/** 1-based index for <att-wizard-steps current> on accelerator pages. */
 export function setupWizardStepNumber(path: string): number {
   switch (path) {
     case "/onboard":

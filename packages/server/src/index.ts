@@ -60,7 +60,6 @@ import {
   markSetupComplete,
   markSetupDiscoverDone,
   markSetupConnectHintsDone,
-  maybeMarkSetupComplete,
   obligationDisplayStatus,
   openDatabase,
   hasKeyfile,
@@ -71,7 +70,6 @@ import {
   pollGmailIngest,
   PRICING_SCENARIOS,
   setupWizardPath,
-  setupAllowedAppPaths,
   syncAllPlaidItems,
   unlinkPlaidItem,
   unlinkGmailAccount,
@@ -256,29 +254,23 @@ function obligationsWithStatus(db: ReturnType<typeof openDatabase>) {
   }));
 }
 
-/** Redirect incomplete setup wizard unless path is allowed during setup. */
+/** Redirect Home to setup hub while checklist is unfinished. App routes stay open. */
 function maybeSetupRedirect(
   db: ReturnType<typeof openDatabase>,
   currentPath: string,
-  extraAllow: string[] = [],
 ): Response | null {
+  if (currentPath !== "/") return null;
   const next = setupWizardPath(db);
-  if (!next) return null;
-  const allowed = new Set([...setupAllowedAppPaths(db), ...extraAllow]);
-  if (allowed.has(currentPath)) return null;
+  if (!next || next === "/") return null;
   return new Response(null, {
     status: 302,
     headers: { Location: next },
   });
 }
 
-/**
- * Next wizard URL after a mutation. Marks setup complete only when the map is done.
- * Why: keep setupWizardPath pure — persist happens here, after skip/create.
- */
-function wizardNextLocation(db: ReturnType<typeof openDatabase>): string {
-  maybeMarkSetupComplete(db);
-  return setupWizardPath(db) ?? "/";
+/** Return to setup hub after an accelerator mutation. */
+function setupHubLocation(): string {
+  return "/app/setup";
 }
 
 function onboardDiscoverHtml(
@@ -347,7 +339,7 @@ app.post("/onboard", async (c) => {
   return withDb((db) => {
     try {
       createTenant(db, { householdName, holderDisplayName });
-      return c.redirect(wizardNextLocation(db));
+      return c.redirect(setupHubLocation());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not create household";
       return c.html(onboardPage(msg), 400);
@@ -358,8 +350,6 @@ app.post("/onboard", async (c) => {
 app.get("/onboard/discover", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const next = setupWizardPath(db);
-    if (next !== "/onboard/discover") return c.redirect(next ?? "/");
     return c.html(
       onboardDiscoverHtml(db, {
         message: c.req.query("msg") ? String(c.req.query("msg")) : undefined,
@@ -374,7 +364,7 @@ app.get("/onboard/discover/skip", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     markSetupDiscoverDone(db);
-    return c.redirect(wizardNextLocation(db));
+    return c.redirect(setupHubLocation());
   }),
 );
 
@@ -382,7 +372,7 @@ app.get("/onboard/discover/continue", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     markSetupDiscoverDone(db);
-    return c.redirect(wizardNextLocation(db));
+    return c.redirect(setupHubLocation());
   }),
 );
 
@@ -464,8 +454,6 @@ app.post("/onboard/discover/asset/:id", (c) =>
 app.get("/onboard/connect", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const next = setupWizardPath(db);
-    if (next !== "/onboard/connect") return c.redirect(next ?? "/");
     return c.html(
       onboardConnectPage({
         hints: listUnsatisfiedConnectHints(db),
@@ -482,7 +470,7 @@ app.get("/onboard/connect/skip", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     markSetupConnectHintsDone(db);
-    return c.redirect(wizardNextLocation(db));
+    return c.redirect(setupHubLocation());
   }),
 );
 
@@ -490,15 +478,13 @@ app.get("/onboard/connect/continue", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
     markSetupConnectHintsDone(db);
-    return c.redirect(wizardNextLocation(db));
+    return c.redirect(setupHubLocation());
   }),
 );
 
 app.get("/onboard/account", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const next = setupWizardPath(db);
-    if (next !== "/onboard/account") return c.redirect(next ?? "/");
     return c.html(onboardAccountPage());
   }),
 );
@@ -518,7 +504,7 @@ app.post("/onboard/account", async (c) => {
         mask: mask || undefined,
         balanceUsd,
       });
-      return c.redirect(wizardNextLocation(db));
+      return c.redirect(setupHubLocation());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not add account";
       return c.html(onboardAccountPage(msg), 400);
@@ -529,8 +515,6 @@ app.post("/onboard/account", async (c) => {
 app.get("/onboard/obligation", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const next = setupWizardPath(db);
-    if (next !== "/onboard/obligation") return c.redirect(next ?? "/");
     return c.html(onboardObligationPage());
   }),
 );
@@ -574,8 +558,6 @@ app.post("/onboard/obligation", async (c) => {
 app.get("/app/accounts", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/accounts");
-    if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
     return c.html(
@@ -591,8 +573,6 @@ app.get("/app/accounts", (c) =>
 app.get("/app/activity", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/activity");
-    if (redirect) return redirect;
     const accountId = c.req.query("account")?.trim() || undefined;
     const pendingQ = c.req.query("pending") ?? "all";
     const pending: "all" | "posted" | "pending" =
@@ -632,8 +612,6 @@ app.get("/app/activity", (c) =>
 app.get("/app/net-worth", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/net-worth");
-    if (redirect) return redirect;
     const accounts = listAccounts(db);
     const assets = listHouseholdAssets(db);
     return c.html(netWorthPage(computeNetWorth(accounts, assets), accounts.length, assets));
@@ -643,8 +621,6 @@ app.get("/app/net-worth", (c) =>
 app.get("/app/cashflow", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/cashflow");
-    if (redirect) return redirect;
     const fromDate = c.req.query("from")?.trim() || undefined;
     const toDate = c.req.query("to")?.trim() || undefined;
     try {
@@ -677,8 +653,6 @@ app.post("/app/setup/complete", (c) =>
 app.get("/app/people", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/people");
-    if (redirect) return redirect;
     return c.html(
       peoplePage(listMembers(db), c.req.query("msg"), c.req.query("error")),
     );
@@ -720,8 +694,6 @@ app.post("/app/people/:id/delete", (c) =>
 app.get("/app/assets", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/assets");
-    if (redirect) return redirect;
     return c.html(
       assetsRegisterPage(
         listHouseholdAssets(db),
@@ -770,8 +742,6 @@ app.post("/app/assets/:id/delete", (c) =>
 app.get("/app/entities", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/entities");
-    if (redirect) return redirect;
     return c.html(entitiesPage(listHouseholdEntities(db)));
   }),
 );
@@ -779,8 +749,6 @@ app.get("/app/entities", (c) =>
 app.get("/app/income", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/income");
-    if (redirect) return redirect;
     return c.html(
       incomePage(listIncomeStreams(db), c.req.query("msg"), c.req.query("error")),
     );
@@ -825,8 +793,6 @@ app.post("/app/income/:id/delete", (c) =>
 app.get("/app/statements", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/statements");
-    if (redirect) return redirect;
     return c.html(statementsPage(getStatementRegister(db)));
   }),
 );
@@ -834,8 +800,6 @@ app.get("/app/statements", (c) =>
 app.get("/app/connections", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/connections");
-    if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
     return c.html(
@@ -872,11 +836,6 @@ app.post("/app/accounts", async (c) => {
         kind: parseFundingKind(kind),
         balanceUsd,
       });
-      if (setupWizardPath(db) === "/onboard/obligation") {
-        return c.redirect(
-          "/app/accounts?msg=Account+added+—+optional:+add+a+bill+in+Obligations+or+Skip+setup",
-        );
-      }
       return c.redirect("/app/accounts?msg=Account+added");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not add account";
@@ -923,11 +882,6 @@ app.post("/app/accounts/:id/delete", (c) => {
 app.get("/app/obligations", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/obligations", [
-      "/app/obligations",
-      "/onboard/obligation",
-    ]);
-    if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
     return c.html(
@@ -1090,8 +1044,6 @@ app.post("/app/transfers/:id/reject", async (c) => {
 app.get("/app/plaid", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/plaid");
-    if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
     return c.html(
@@ -1232,8 +1184,6 @@ app.post("/app/plaid/:id/unlink", (c) => {
 app.get("/app/snaptrade", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/snaptrade");
-    if (redirect) return redirect;
     const msg = c.req.query("msg");
     const err = c.req.query("error");
     return c.html(
@@ -1341,8 +1291,6 @@ app.post("/app/snaptrade/:id/unlink", (c) => {
 app.get("/app/ingest", (c) =>
   withDb((db) => {
     if (!isOnboarded(db)) return c.redirect("/onboard");
-    const redirect = maybeSetupRedirect(db, "/app/ingest", ["/app/ingest"]);
-    if (redirect) return redirect;
     const token = getOrCreateIngestToken(db);
     const msg = c.req.query("msg");
     const err = c.req.query("error");

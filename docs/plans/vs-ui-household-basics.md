@@ -58,9 +58,17 @@ Income” (not a fake $0). Horizon matches runway (default 30d).
 
 ## Dogfood
 
+Run the full agent-first ladder on a throwaway data dir:
+
+```bash
+./scripts/household-basics-ladder.sh
+```
+
+Manual steps (same flow):
+
 ```bash
 attache onboard --household "Smith" --holder "Alex"
-attache setup status
+attache setup status          # lands on /app/setup after web onboard
 attache accounts create --name Checking --balance 2500
 attache obligations create --payee Rent --amount 1800 --due 2026-09-01 --cadence monthly
 attache members add --name Jordan --kind partner
@@ -70,7 +78,8 @@ attache entities list
 attache income list
 attache cashflow
 attache agent attention
-# Web: /app/setup · /app/assets · /app/entities · /app/statements · /app/people · /app/income
+attache setup complete        # or Mark setup complete on /app/setup
+# Web: /app/setup (hub) · accelerators at /onboard/* · register routes under More
 ```
 
 ## References

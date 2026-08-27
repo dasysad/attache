@@ -12,6 +12,7 @@ import {
   onboardConnectPage,
   onboardDiscoverPage,
   onboardPage,
+  setupPage,
   setNavCurrentPath,
 } from "./views.js";
 import type { CashflowReport, CashflowTrend, DiscoverCandidate, FundingAccount, SolvencyForecast } from "@attache/core";
@@ -452,5 +453,34 @@ describe("onboard wizard (ADR-015 P3)", () => {
     expect(html).toContain("no bank link required");
     expect(html).toContain("Or connect a bank (optional)");
     expect(html).toContain('current="4"');
+  });
+});
+
+describe("setupPage hub", () => {
+  it("lists accelerators while setup is open", () => {
+    const html = setupPage({
+      onboarded: true,
+      setupComplete: false,
+      items: [],
+      gaps: [],
+      message: "2 optional gap(s)",
+    });
+    expect(html).toContain("/onboard/discover");
+    expect(html).toContain("/onboard/connect");
+    expect(html).toContain("/onboard/account");
+    expect(html).toContain("/onboard/obligation");
+    expect(html).toContain("Mark setup complete");
+  });
+
+  it("hides accelerators after setup complete (negative)", () => {
+    const html = setupPage({
+      onboarded: true,
+      setupComplete: true,
+      items: [],
+      gaps: [],
+      message: "done",
+    });
+    expect(html).not.toContain("setup-accelerators");
+    expect(html).not.toContain("Mark setup complete");
   });
 });

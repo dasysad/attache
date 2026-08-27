@@ -1957,7 +1957,7 @@ export async function parseCostForm(c: Context): Promise<{
  * No nav/header: every other route is gated until unlock succeeds.
  */
 export function setupPage(coverage: SetupCoverage, message?: string): string {
-    const rows = coverage.items
+  const rows = coverage.items
     .map((i) => {
       return `<li class="setup-item">
         <att-badge severity="${i.satisfied ? "info" : "warning"}">${i.satisfied ? "done" : "gap"}</att-badge>
@@ -1967,6 +1967,19 @@ export function setupPage(coverage: SetupCoverage, message?: string): string {
       </li>`;
     })
     .join("");
+  const accelerators =
+    coverage.onboarded && !coverage.setupComplete
+      ? `<section class="setup-accelerators">
+  <h2>Accelerators (optional)</h2>
+  <p>Same loop as <code>/onboard/*</code> — Gmail and Plaid are never required.</p>
+  <ul class="setup-accel-list">
+    <li><a href="/onboard/discover">Find mail</a> · sandbox discover + confirm bills</li>
+    <li><a href="/onboard/connect">Connect hints</a> · statement institutions → Plaid/SnapTrade</li>
+    <li><a href="/onboard/account">Quick account</a> · manual balance without My Accounts nav</li>
+    <li><a href="/onboard/obligation">Quick bill</a> · one obligation for runway</li>
+  </ul>
+</section>`
+      : "";
   return layout(
     "Setup",
     `
@@ -1976,6 +1989,7 @@ export function setupPage(coverage: SetupCoverage, message?: string): string {
   ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
   <p class="meta">${escapeHtml(coverage.message)}</p>
   <ul class="setup-list">${rows || `<li class="empty-hint">Not onboarded.</li>`}</ul>
+  ${accelerators}
   ${
     coverage.onboarded && !coverage.setupComplete
       ? `<form method="post" action="/app/setup/complete"><button type="submit">Mark setup complete</button></form>`

@@ -183,7 +183,7 @@ export function getSetupCoverage(db: Database.Database): SetupCoverage {
       ? gaps.length === 0
         ? "Setup complete — household coverage looks full."
         : `Setup marked complete with ${gaps.length} optional gap(s).`
-      : `Wizard unfinished — ${gaps.length} optional gap(s); see attache setup status.`,
+      : `${gaps.length} optional gap(s) — use accelerators below or visit any checklist link.`,
   };
 }
 
