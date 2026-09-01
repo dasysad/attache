@@ -12,12 +12,13 @@ credential change shipped. **BL-12 transfer rules** shipped through P1 (CEL
 basics UI** (setup hub, register lists, people, income, cashflow, Home planned
 income) shipped. Mobile companion skipped. Mesh parked. **SendGrid parked.**
 
-Next pull: **dogfood ladder** then rules/ACH web surfaces (Phase E). See
-[vs-ui-household-basics.md](docs/plans/vs-ui-household-basics.md).
+Next pull: **credential hygiene UI** or next backlog slice. Phase E rules/ACH
+web shipped — see [vs-ui-automation.md](docs/plans/vs-ui-automation.md).
 
 ```bash
 ./scripts/household-basics-ladder.sh   # clean ATTACHE_DATA_DIR walk
 attache setup status                   # web lands on /app/setup after onboard
+# Web: /app/transfer-rules · /app/ach
 ```
 
 | Doc | Purpose |

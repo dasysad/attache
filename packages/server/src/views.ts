@@ -30,6 +30,10 @@ import {
   type HouseholdMember,
   type IncomeStream,
   type StatementRegister,
+  type TransferRule,
+  type TransferRuleRun,
+  type TransferRulesScheduleStatus,
+  type AchStatus,
   groupAccountsByKind,
   sumBrokerageUsd,
   sumLiquidBalanceUsd,
@@ -97,6 +101,8 @@ export function layout(title: string, body: string): string {
     "/app/entities",
     "/app/income",
     "/app/statements",
+    "/app/transfer-rules",
+    "/app/ach",
   ]);
   return `<!DOCTYPE html>
 <html lang="en">
@@ -137,6 +143,8 @@ export function layout(title: string, body: string): string {
         ${navLink("/app/costs", "Costs")}
         ${navLink("/app/net-worth", "Net worth")}
         ${navLink("/app/cashflow", "Cash flow")}
+        ${navLink("/app/transfer-rules", "Rules")}
+        ${navLink("/app/ach", "ACH")}
       </details>
     </nav>
   </header>
@@ -1487,6 +1495,7 @@ export function transfersPage(
     `
 <section class="manage-page transfers-page">
   <h1>Transfer approvals</h1>
+  <p class="meta"><a href="/app/transfer-rules">Transfer rules</a> · <a href="/app/ach">ACH rail</a></p>
   <p><strong>Approve ≠ bank ACH</strong> unless <code>ATTACHE_ACH</code> is on and both legs are Plaid-linked.
      Manual accounts post to the local ledger. SnapTrade and mixed legs stay consent-only.</p>
   ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
@@ -1520,6 +1529,213 @@ export function transfersPage(
     : ""}
 
   <p class="meta">Agent: <code>attache transfer submit</code> · <code>attache transfer approve</code> — check <code>execution.mode</code> / <code>message</code> in JSON.</p>
+</section>`,
+  );
+}
+
+function accountLabel(accounts: FundingAccount[], id: string): string {
+  const a = accounts.find((x) => x.id === id);
+  return a ? a.name : id.slice(0, 8);
+}
+
+function formatRuleTrigger(
+  rule: TransferRule,
+  accounts: FundingAccount[],
+): string {
+  if (rule.trigger.kind === "always") return "always";
+  return `balance &gt; $${moneyUsd(rule.trigger.thresholdUsd)} on ${escapeHtml(accountLabel(accounts, rule.trigger.accountId))}`;
+}
+
+/**
+ * Phase E — typed transfer policies (ADR-017). Same domain as CLI/MCP;
+ * evaluate creates HITL proposals or auto-approves within caps.
+ */
+export function transferRulesPage(
+  rules: TransferRule[],
+  runs: TransferRuleRun[],
+  accounts: FundingAccount[],
+  schedule: TransferRulesScheduleStatus,
+  message?: string,
+  error?: string,
+): string {
+  const accountOptions = accounts
+    .map(
+      (a) =>
+        `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)} ($${moneyUsd(a.balanceUsd)})</option>`,
+    )
+    .join("");
+
+  const ruleList =
+    rules.length === 0
+      ? `<p class="empty-hint">No rules — create a sweep below or use <code>attache transfer rules create</code>.</p>`
+      : `<ul class="manage-list">${rules
+          .map((r) => {
+            const disabled = !r.enabled;
+            return `<li class="manage-item${disabled ? " muted" : ""}">
+            <strong>${escapeHtml(r.name)}</strong>
+            ${disabled ? `<att-badge severity="warning">disabled</att-badge>` : `<att-badge severity="info">enabled</att-badge>`}
+            <p class="meta">Sweep $${moneyUsd(r.action.amountUsd)} · ${formatRuleTrigger(r, accounts)}</p>
+            <p class="meta">${escapeHtml(accountLabel(accounts, r.action.fromAccountId))} → ${escapeHtml(accountLabel(accounts, r.action.toAccountId))}</p>
+            <p class="meta">Autonomy: ${escapeHtml(r.policy.autonomy)} · max/run $${moneyUsd(r.policy.maxPerRunUsd)} · max/month $${moneyUsd(r.policy.maxPerMonthUsd)}${r.policy.whenCel ? ` · when: <code>${escapeHtml(r.policy.whenCel)}</code>` : ""}</p>
+            ${
+              r.enabled
+                ? `<form method="post" action="/app/transfer-rules/${escapeHtml(r.id)}/disable" class="inline-form">
+                     <button type="submit" class="btn-secondary">Disable</button>
+                   </form>`
+                : ""
+            }
+          </li>`;
+          })
+          .join("")}</ul>`;
+
+  const runList =
+    runs.length === 0
+      ? `<p class="empty-hint">No evaluate runs yet this month.</p>`
+      : `<ul class="manage-list muted">${runs
+          .slice(0, 15)
+          .map(
+            (run) => `<li class="manage-item">
+            <strong>${escapeHtml(run.outcome)}</strong>
+            <span class="meta">${escapeHtml(run.periodKey)} · rule ${escapeHtml(run.ruleId.slice(0, 8))}…${run.amountUsd != null ? ` · $${moneyUsd(run.amountUsd)}` : ""}</span>
+            ${run.message ? `<p class="meta">${escapeHtml(run.message)}</p>` : ""}
+          </li>`,
+          )
+          .join("")}</ul>`;
+
+  const scheduleBlock = `<section class="connect-panel">
+  <h2>Daily schedule</h2>
+  <p>${escapeHtml(schedule.message)}</p>
+  <p class="meta"><code>${escapeHtml(schedule.evaluateCommand)}</code></p>
+  ${
+    schedule.platform !== "darwin"
+      ? `<p class="meta">Cron line: <code>${escapeHtml(schedule.cronLine)}</code></p>`
+      : schedule.launchdPlistPath
+        ? `<p class="meta">Plist: <code>${escapeHtml(schedule.launchdPlistPath)}</code></p>`
+        : ""
+  }
+  <div class="wizard-actions">
+    ${
+      schedule.installed
+        ? `<form method="post" action="/app/transfer-rules/schedule/uninstall"><button type="submit" class="btn-secondary">Uninstall schedule</button></form>`
+        : `<form method="post" action="/app/transfer-rules/schedule/install"><button type="submit">Install daily 06:00 evaluate</button></form>`
+    }
+  </div>
+</section>`;
+
+  return layout(
+    "Transfer rules",
+    `
+<section class="manage-page">
+  <h1>Transfer rules</h1>
+  <p>Typed local policies — not Starflow YAML. Evaluate creates HITL proposals or auto-approves within caps (same honesty path as manual transfers).</p>
+  <p class="meta"><a href="/app/transfers">Transfer queue</a> · <a href="/app/ach">ACH rail</a></p>
+  ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
+  ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+
+  <form method="post" action="/app/transfer-rules/evaluate" class="inline-form">
+    <button type="submit">Evaluate all rules now</button>
+  </form>
+
+  <h2>Rules (${rules.filter((r) => r.enabled).length} enabled)</h2>
+  ${ruleList}
+
+  <h2>Recent runs</h2>
+  ${runList}
+
+  ${scheduleBlock}
+
+  <h2>Create rule</h2>
+  <form method="post" action="/app/transfer-rules" class="onboard-form">
+    <label>Name <input name="name" required placeholder="Sweep to savings" /></label>
+    <label>From
+      <select name="fromAccountId" required>${accountOptions}</select>
+    </label>
+    <label>To
+      <select name="toAccountId" required>${accountOptions}</select>
+    </label>
+    <label>Amount (USD) <input name="amountUsd" type="number" step="0.01" min="0.01" required /></label>
+    <label>Max per run (USD) <input name="maxPerRunUsd" type="number" step="0.01" min="0.01" placeholder="defaults to amount" /></label>
+    <label>Max per month (USD) <input name="maxPerMonthUsd" type="number" step="0.01" min="0.01" placeholder="defaults to 2× amount" /></label>
+    <label>Autonomy
+      <select name="autonomy">
+        <option value="proposal" selected>proposal (HITL)</option>
+        <option value="auto">auto (within caps)</option>
+      </select>
+    </label>
+    <label>Balance threshold (optional)
+      <input name="thresholdUsd" type="number" step="0.01" min="0" placeholder="omit = always fire when evaluate runs" />
+    </label>
+    <label>CEL when (optional)
+      <input name="whenCel" placeholder="liquidBalanceUsd >= 1000.0 && runwayDays > 14" />
+    </label>
+    <button type="submit">Create rule</button>
+  </form>
+
+  <p class="meta">Agent: <code>attache transfer rules list</code> · <code>attache transfer rules evaluate</code> · <code>attache transfer rules schedule install</code></p>
+</section>`,
+  );
+}
+
+/**
+ * Phase E — ACH rail status + sandbox simulate + webhook UX (ADR-013).
+ */
+export function achPage(
+  status: AchStatus,
+  webhook: { configured: boolean; path: string; message: string },
+  message?: string,
+  error?: string,
+): string {
+  const transferList =
+    status.transfers.length === 0
+      ? `<p class="empty-hint">No ACH transfers yet — approve a Plaid-to-Plaid proposal when <code>ATTACHE_ACH</code> is on.</p>`
+      : `<ul class="manage-list">${status.transfers
+          .map((t) => {
+            const simulate =
+              status.backend === "sandbox" && t.status === "submitted"
+                ? `<form method="post" action="/app/ach/simulate/${escapeHtml(t.proposalId)}" class="inline-form">
+                     <button type="submit" class="btn-secondary">Simulate posted</button>
+                   </form>`
+                : "";
+            return `<li class="manage-item">
+            <strong>${escapeHtml(t.status)}</strong>
+            <span class="meta">$${moneyUsd(t.amountUsd)} · proposal ${escapeHtml(t.proposalId.slice(0, 8))}… · ${escapeHtml(t.provider)}</span>
+            ${t.lastError ? `<p class="error compact">${escapeHtml(t.lastError)}</p>` : ""}
+            ${simulate}
+          </li>`;
+          })
+          .join("")}</ul>`;
+
+  return layout(
+    "ACH",
+    `
+<section class="manage-page">
+  <h1>ACH rail</h1>
+  <p>Licensed Plaid Transfer for Plaid-to-Plaid HITL. Default off — honesty unchanged.</p>
+  <p class="meta"><a href="/app/transfers">Transfer queue</a> · <a href="/app/transfer-rules">Transfer rules</a></p>
+  ${message ? `<p class="success">${escapeHtml(message)}</p>` : ""}
+  ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+
+  <dl class="meta-dl">
+    <dt>Backend</dt><dd><code>${escapeHtml(status.backend)}</code>${status.mode ? ` (${escapeHtml(status.mode)})` : ""}</dd>
+    <dt>Enabled</dt><dd>${status.enabled ? "yes" : "no"}</dd>
+    <dt>Hint</dt><dd>${escapeHtml(status.hint)}</dd>
+  </dl>
+
+  <section class="connect-panel">
+    <h2>Webhooks</h2>
+    <p>${escapeHtml(webhook.message)}</p>
+    <p class="meta">Endpoint: <code>POST ${escapeHtml(webhook.path)}</code> · Bearer <code>ATTACHE_ACH_WEBHOOK_SECRET</code></p>
+    <p class="meta">Status: ${webhook.configured ? "configured" : "off — poll with Sync below or set secret"}</p>
+  </section>
+
+  <form method="post" action="/app/ach/sync" class="inline-form">
+    <button type="submit"${status.enabled ? "" : " disabled"}>Sync ACH (poll rail)</button>
+  </form>
+
+  <h2>Transfers (${status.transfers.length})</h2>
+  ${transferList}
+
+  <p class="meta">Agent: <code>attache ach status</code> · <code>attache ach simulate &lt;proposalId&gt;</code> · <code>attache ach webhook-status</code></p>
 </section>`,
   );
 }

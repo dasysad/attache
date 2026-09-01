@@ -116,6 +116,17 @@ import {
   handleAchWebhook,
   AchWebhookError,
   achWebhookStatus,
+  achStatus,
+  createTransferRule,
+  disableTransferRule,
+  evaluateTransferRules,
+  listTransferRules,
+  listTransferRuleRuns,
+  installTransferRulesSchedule,
+  uninstallTransferRulesSchedule,
+  transferRulesScheduleStatus,
+  simulateAchPosted,
+  syncAchTransfers,
   fcmStatus,
 } from "@attache/core";
 import {
@@ -145,6 +156,8 @@ import {
   setNavCurrentPath,
   setTransferPendingCount,
   transfersPage,
+  transferRulesPage,
+  achPage,
   vaultUnlockPage,
   setupPage,
   peoplePage,
@@ -1040,6 +1053,160 @@ app.post("/app/transfers/:id/reject", async (c) => {
     }
   });
 });
+
+app.get("/app/transfer-rules", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const msg = c.req.query("msg");
+    const err = c.req.query("error");
+    return c.html(
+      transferRulesPage(
+        listTransferRules(db),
+        listTransferRuleRuns(db),
+        listAccounts(db),
+        transferRulesScheduleStatus(),
+        msg ? String(msg) : undefined,
+        err ? String(err) : undefined,
+      ),
+    );
+  }),
+);
+
+app.post("/app/transfer-rules", async (c) => {
+  const body = await c.req.parseBody();
+  const name = String(body.name ?? "").trim();
+  const fromAccountId = String(body.fromAccountId ?? "");
+  const toAccountId = String(body.toAccountId ?? "");
+  const amountUsd = Number(body.amountUsd);
+  const maxPerRunUsd = body.maxPerRunUsd ? Number(body.maxPerRunUsd) : undefined;
+  const maxPerMonthUsd = body.maxPerMonthUsd
+    ? Number(body.maxPerMonthUsd)
+    : undefined;
+  const autonomy = String(body.autonomy ?? "proposal");
+  const thresholdRaw = body.thresholdUsd ? Number(body.thresholdUsd) : undefined;
+  const whenCel = String(body.whenCel ?? "").trim() || undefined;
+  return withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      createTransferRule(db, {
+        name,
+        fromAccountId,
+        toAccountId,
+        amountUsd,
+        maxPerRunUsd: Number.isFinite(maxPerRunUsd) ? maxPerRunUsd : undefined,
+        maxPerMonthUsd: Number.isFinite(maxPerMonthUsd)
+          ? maxPerMonthUsd
+          : undefined,
+        autonomy:
+          autonomy === "auto" || autonomy === "proposal" ? autonomy : undefined,
+        thresholdUsd: Number.isFinite(thresholdRaw) ? thresholdRaw : undefined,
+        whenCel,
+      });
+      return c.redirect("/app/transfer-rules?msg=Rule+created");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "create failed";
+      return c.redirect(`/app/transfer-rules?error=${encodeURIComponent(msg)}`);
+    }
+  });
+});
+
+app.post("/app/transfer-rules/evaluate", (c) =>
+  withDbAsync(async (db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const result = await evaluateTransferRules(db);
+      return c.redirect(
+        `/app/transfer-rules?msg=${encodeURIComponent(result.message)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "evaluate failed";
+      return c.redirect(`/app/transfer-rules?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.post("/app/transfer-rules/schedule/install", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      installTransferRulesSchedule();
+      return c.redirect("/app/transfer-rules?msg=Schedule+installed");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "install failed";
+      return c.redirect(`/app/transfer-rules?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.post("/app/transfer-rules/schedule/uninstall", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      uninstallTransferRulesSchedule();
+      return c.redirect("/app/transfer-rules?msg=Schedule+removed");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "uninstall failed";
+      return c.redirect(`/app/transfer-rules?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.post("/app/transfer-rules/:id/disable", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const id = c.req.param("id");
+    const rule = disableTransferRule(db, id);
+    if (!rule) {
+      return c.redirect("/app/transfer-rules?error=Rule+not+found");
+    }
+    return c.redirect("/app/transfer-rules?msg=Rule+disabled");
+  }),
+);
+
+app.get("/app/ach", (c) =>
+  withDb((db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const msg = c.req.query("msg");
+    const err = c.req.query("error");
+    return c.html(
+      achPage(
+        achStatus(db),
+        achWebhookStatus(),
+        msg ? String(msg) : undefined,
+        err ? String(err) : undefined,
+      ),
+    );
+  }),
+);
+
+app.post("/app/ach/sync", (c) =>
+  withDbAsync(async (db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    try {
+      const synced = await syncAchTransfers(db);
+      return c.redirect(
+        `/app/ach?msg=${encodeURIComponent(`Synced ${synced.length} open transfer(s)`)}`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "sync failed";
+      return c.redirect(`/app/ach?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
+
+app.post("/app/ach/simulate/:proposalId", (c) =>
+  withDbAsync(async (db) => {
+    if (!isOnboarded(db)) return c.redirect("/onboard");
+    const proposalId = c.req.param("proposalId");
+    try {
+      await simulateAchPosted(db, proposalId);
+      return c.redirect("/app/ach?msg=Simulated+posted+→+ledger");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "simulate failed";
+      return c.redirect(`/app/ach?error=${encodeURIComponent(msg)}`);
+    }
+  }),
+);
 
 app.get("/app/plaid", (c) =>
   withDb((db) => {

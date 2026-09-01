@@ -13,6 +13,8 @@ import {
   onboardDiscoverPage,
   onboardPage,
   setupPage,
+  transferRulesPage,
+  achPage,
   setNavCurrentPath,
 } from "./views.js";
 import type { CashflowReport, CashflowTrend, DiscoverCandidate, FundingAccount, SolvencyForecast } from "@attache/core";
@@ -482,5 +484,51 @@ describe("setupPage hub", () => {
     });
     expect(html).not.toContain("setup-accelerators");
     expect(html).not.toContain("Mark setup complete");
+  });
+});
+
+describe("automation UI (Phase E)", () => {
+  beforeEach(() => setNavCurrentPath("/app/transfer-rules"));
+
+  it("transfer rules page lists evaluate, schedule, and create form", () => {
+    const html = transferRulesPage(
+      [],
+      [],
+      [{ id: "a1", name: "Checking", balanceUsd: 1000 } as FundingAccount],
+      {
+        platform: "darwin",
+        installed: false,
+        launchdPlistPath: "/tmp/co.attache.plist",
+        cronLine: "0 6 * * * attache transfer rules evaluate",
+        evaluateCommand: "attache transfer rules evaluate",
+        message: "Not installed",
+      },
+    );
+    expect(html).toContain("/app/transfer-rules/evaluate");
+    expect(html).toContain("Install daily 06:00 evaluate");
+    expect(html).toContain('action="/app/transfer-rules"');
+    expect(html).toContain("attache transfer rules evaluate");
+  });
+
+  it("ach page shows webhook path and sync (negative: off when disabled)", () => {
+    setNavCurrentPath("/app/ach");
+    const html = achPage(
+      {
+        backend: "off",
+        mode: null,
+        enabled: false,
+        transfers: [],
+        hint: "ACH off",
+      },
+      {
+        configured: false,
+        path: "/api/ach/webhook",
+        message: "webhooks off",
+      },
+    );
+    expect(html).toContain("/api/ach/webhook");
+    expect(html).toContain("ATTACHE_ACH_WEBHOOK_SECRET");
+    expect(html).toContain('action="/app/ach/sync"');
+    expect(html).toContain("disabled");
   });
 });

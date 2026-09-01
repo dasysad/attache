@@ -1,6 +1,6 @@
 # Vertical slice — Household basics before automation (UI P4+)
 
-**Status:** ✅ Phases A–D + F shipped (automation UI deferred — Phase E)  
+**Status:** ✅ Phases A–D + F shipped · Phase E (rules/ACH UI) shipped  
 **Parent:** [ADR-014](../adr/014-household-command-center-ui.md), [ADR-015](../adr/015-discovery-onboard.md)  
 **Date:** 2026-08-20
 
@@ -14,10 +14,11 @@ the web. CLI/MCP and web ship together each phase. Automation UI is Phase E.
 Setup checklist → Register lists → People + income → Cashflow in/out → Home income stat → (later) rules UI
 ```
 
-## Explicitly deferred (Phase E)
+## Explicitly deferred (post Phase E)
 
-Transfer-rules UI, schedule install UI, ACH webhook UX, credential hygiene
-screens, Sankey, mesh, CRM, document vault, SendGrid.
+Credential hygiene screens, Sankey, mesh, CRM, document vault, SendGrid.
+
+Phase E (rules/ACH UI): see [vs-ui-automation.md](./vs-ui-automation.md).
 
 ## Phase A — Setup coverage checklist
 

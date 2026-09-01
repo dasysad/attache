@@ -23,12 +23,12 @@
 | 14 | **ACH autonomous rules** (BL-12) | ✅ P0+P1 — [plan](./vs-transfer-rules.md) · [ADR-017](../adr/017-transfer-rules-typed-local-policies.md) |
 | 15 | **SendGrid inbound** (BL-8) | Parked — BYO like Mailgun; not next |
 | 16 | **ACH webhooks** (BL-12 P2) | ✅ shipped — `POST /api/ach/webhook` |
-| 17 | **Household basics UI** (ADR-014 P4+) | ✅ A–D + F (Home income) — [plan](./vs-ui-household-basics.md); rules UI deferred |
+| 17 | **Household basics UI** (ADR-014 P4+) | ✅ A–D + F + setup hub — [plan](./vs-ui-household-basics.md) |
 | 18 | **Premium billing gate** (BL-5) | ADR-006 soft gate |
 | 19 | **ZK R2 backup** (BL-9) | Optional tier |
 | 20 | **WorkOS app identity** (BL-10) | Separate from Gmail OAuth |
 | 21 | **Starflow transfer DAGs** (BL-13) | After autonomous rules |
-| 22 | **Rules / ACH UI** | After household basics dogfood |
+| 22 | **Rules / ACH UI** | ✅ [vs-ui-automation.md](./vs-ui-automation.md) |
 | — | **Mesh** (BL-1–4) | **Parked** |
 | — | **Kotlin companion** (BL-6) | **Skipped for now** — API shipped |
 
